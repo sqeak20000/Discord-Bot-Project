@@ -154,7 +154,7 @@ async def on_message(message):
                                 await message.channel.send("❌ Failed to timeout the user.")
                             
                             # Wait before deleting the message (5 seconds)
-                            await asyncio.sleep(5)
+                            await asyncio.sleep(10)
                             
                             # Delete the user's message after delay
                             try:
