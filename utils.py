@@ -42,7 +42,7 @@ async def delete_message_after_delay(message, delay=MESSAGE_DELETE_DELAY):
         pass  # Message was already deleted
 
 def parse_duration(duration_text):
-    """Parse duration string (e.g., '10m', '1h', '2d') into a datetime object"""
+    """Parse duration string (e.g., '10m', '1h', '2d', '1w') into a datetime object"""
     duration_text = duration_text.lower().strip()
     
     if duration_text.endswith('m'):
@@ -54,5 +54,8 @@ def parse_duration(duration_text):
     elif duration_text.endswith('d'):
         days = int(duration_text[:-1])
         return discord.utils.utcnow() + timedelta(days=days)
+    elif duration_text.endswith('w'):
+        weeks = int(duration_text[:-1])
+        return discord.utils.utcnow() + timedelta(weeks=weeks)
     else:
         return None

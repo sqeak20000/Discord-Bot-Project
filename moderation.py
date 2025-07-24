@@ -111,13 +111,13 @@ async def handle_timeout_command(client, message):
             return
         
         # Ask for duration
-        await message.channel.send("How long should the timeout be? (e.g., 10m, 1h, 2d)")
+        await message.channel.send("How long should the timeout be? (e.g., 10m, 1h, 2d, 1w)")
         
         duration_message = await wait_for_user_response(client, message)
         timeout_duration = parse_duration(duration_message.content)
         
         if not timeout_duration:
-            await message.channel.send("❌ Invalid duration format. Use 10m, 1h, or 2d")
+            await message.channel.send("❌ Invalid duration format. Use 10m, 1h, 2d, or 1w")
             return
         
         # Log the action
