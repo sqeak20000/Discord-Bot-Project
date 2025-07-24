@@ -19,7 +19,7 @@ async def log_action(client, message, action_type, moderator, reason=None):
     if log_channel:
         # Send the text content first with reason
         reason_text = f" - Reason: {reason}" if reason else ""
-        await log_channel.send(f"{message.content} {action_type} by {moderator.mention} for {reason_text}")
+        await log_channel.send(f"{message.content} {action_type} by {moderator.mention} {reason_text}")
         
         # Send any attachments (images)
         for attachment in message.attachments:
