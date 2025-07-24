@@ -24,6 +24,36 @@ async def log_action(client, message, action_type, moderator):
         for attachment in message.attachments:
             await log_channel.send(attachment)
 
+async def notify_user_dm(user, action_type, guild_name, moderator, reason=None, duration=None):
+    """Send a DM to the user informing them about the moderation action"""
+    try:
+        embed = discord.Embed(
+            title=f"You have been {action_type.lower()}",
+            color=discord.Color.red() if action_type.lower() in ["banned", "kicked"] else discord.Color.orange()
+        )
+        
+        embed.add_field(name="Server", value=guild_name, inline=True)
+        embed.add_field(name="Moderator", value=moderator.display_name, inline=True)
+        
+        if duration:
+            embed.add_field(name="Duration", value=duration, inline=True)
+        
+        if reason:
+            embed.add_field(name="Reason", value=reason, inline=False)
+        else:
+            embed.add_field(name="Reason", value="No specific reason provided", inline=False)
+        
+        embed.set_footer(text="If you believe this action was taken in error, please contact server staff.")
+        
+        await user.send(embed=embed)
+        return True  # Successfully sent DM
+    except discord.Forbidden:
+        # User has DMs disabled or blocked the bot
+        return False
+    except discord.HTTPException:
+        # Other error sending DM
+        return False
+
 async def wait_for_user_response(client, original_message):
     """Wait for the next message from the same user in the same channel"""
     def check(msg):
