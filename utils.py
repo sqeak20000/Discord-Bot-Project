@@ -22,7 +22,7 @@ async def log_action(client, message, action_type, moderator):
         
         # Send any attachments (images)
         for attachment in message.attachments:
-            await log_channel.send(attachment.url)
+            await log_channel.send(attachment)
 
 async def wait_for_user_response(client, original_message):
     """Wait for the next message from the same user in the same channel"""
