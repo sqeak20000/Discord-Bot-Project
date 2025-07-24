@@ -19,7 +19,7 @@ async def on_message(message):
     
     if message.content.lower() == "?ban":
         # List of roles that can ban
-        allowed_roles = ["blue", "nsfw"]
+        allowed_roles = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]
         
         # Check if the user has any of the allowed roles
         user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
@@ -46,7 +46,7 @@ async def on_message(message):
                     
                     if has_link or has_attachment:
                         # Post the message content to a specific channel
-                        log_channel_id = 897612836241555486  # Replace with your channel ID
+                        log_channel_id = 1397806698596405268  # Replace with your channel ID
                         log_channel = client.get_channel(log_channel_id)
 
                         if log_channel:
@@ -85,7 +85,7 @@ async def on_message(message):
 
     if message.content.lower() == "?timeout":
             # List of roles that can timeout
-            allowed_roles = ["blue", "nsfw"]
+            allowed_roles = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]
             
             # Check if the user has any of the allowed roles
             user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
@@ -133,7 +133,7 @@ async def on_message(message):
                                 return
                             
                             # Post the message content to a specific channel
-                            log_channel_id = 897612836241555486  # Replace with your channel ID
+                            log_channel_id = 1397806698596405268  # Replace with your channel ID
                             log_channel = client.get_channel(log_channel_id)
 
                             if log_channel:
@@ -173,7 +173,7 @@ async def on_message(message):
 
     if message.content.lower() == "?kick":
         # List of roles that can kick
-        allowed_roles = ["blue", "nsfw"]
+        allowed_roles = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]
         
         # Check if the user has any of the allowed roles
         user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
@@ -198,7 +198,7 @@ async def on_message(message):
                     
                     if has_link or has_attachment:
                         # Post the message content to a specific channel
-                        log_channel_id = 897612836241555486  # Replace with your channel ID
+                        log_channel_id = 1397806698596405268  # Replace with your channel ID
                         log_channel = client.get_channel(log_channel_id)
 
                         if log_channel:
