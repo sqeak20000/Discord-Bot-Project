@@ -33,7 +33,7 @@ async def handle_ban_command(client, message):
         ban_reason = reason_message.content.strip()
         
         # Log the action
-        await log_action(client, next_message, "Banned", message.author)
+        await log_action(client, next_message, "Banned", message.author, ban_reason)
         
         # Send DM notification to user before banning
         dm_sent = await notify_user_dm(
@@ -91,7 +91,7 @@ async def handle_kick_command(client, message):
         kick_reason = reason_message.content.strip()
         
         # Log the action
-        await log_action(client, next_message, "Kicked", message.author)
+        await log_action(client, next_message, "Kicked", message.author, kick_reason)
         
         # Send DM notification to user before kicking
         dm_sent = await notify_user_dm(
@@ -159,7 +159,7 @@ async def handle_timeout_command(client, message):
         timeout_reason = reason_message.content.strip()
         
         # Log the action
-        await log_action(client, next_message, "Timed out", message.author)
+        await log_action(client, next_message, "Timed out", message.author, timeout_reason)
         
         # Send DM notification to user before timeout
         dm_sent = await notify_user_dm(

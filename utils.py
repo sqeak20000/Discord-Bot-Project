@@ -13,12 +13,13 @@ def has_evidence(message):
     has_attachment = len(message.attachments) > 0
     return has_link or has_attachment
 
-async def log_action(client, message, action_type, moderator):
+async def log_action(client, message, action_type, moderator, reason=None):
     """Log moderation action to the log channel"""
     log_channel = client.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        # Send the text content first
-        await log_channel.send(f"{message.content} {action_type} by {moderator.mention}: ")
+        # Send the text content first with reason
+        reason_text = f" - Reason: {reason}" if reason else ""
+        await log_channel.send(f"{message.content} {action_type} by {moderator.mention} for {reason_text}")
         
         # Send any attachments (images)
         for attachment in message.attachments:
