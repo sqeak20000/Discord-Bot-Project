@@ -19,11 +19,11 @@ async def on_message(message):
     # Command routing
     command = message.content.lower()
     
-    if command == "?ban":
+    if command == "!ban":
         await handle_ban_command(client, message)
-    elif command == "?kick":
+    elif command == "!kick":
         await handle_kick_command(client, message)
-    elif command == "?timeout":
+    elif command == "!timeout":
         await handle_timeout_command(client, message)
 
 if __name__ == "__main__":
