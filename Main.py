@@ -25,7 +25,7 @@ async def on_message(message):
         user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
         
         if user_has_permission:
-            await message.channel.send("Who do you want to ban? Please mention them.")
+            await message.channel.send("Who do you want to ban? Please mention them and attach evidence.")
             
             
             # Wait for the next message from the same user
@@ -91,7 +91,7 @@ async def on_message(message):
             user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
             
             if user_has_permission:
-                await message.channel.send("Who do you want to timeout? Please mention them.")
+                await message.channel.send("Who do you want to timeout? Please mention them and attach evidence.")
                 
                 # Wait for the next message from the same user
                 def check(msg):
@@ -179,7 +179,7 @@ async def on_message(message):
         user_has_permission = any(role.name in allowed_roles for role in message.author.roles)
         
         if user_has_permission:
-            await message.channel.send("Who do you want to kick? Please mention them.")
+            await message.channel.send("Who do you want to kick? Please mention them and attach evidence.")
             
             # Wait for the next message from the same user
             def check(msg):
