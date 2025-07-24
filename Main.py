@@ -1,5 +1,6 @@
 import discord
 import asyncio
+import os
 from datetime import timedelta
 
 intents = discord.Intents.default()
@@ -234,4 +235,9 @@ async def on_message(message):
             except asyncio.TimeoutError:
                 await message.channel.send("You took too long to respond!")
 
-client.run('MTM5NTk3OTk2NjM3MzY5NTYyMQ.G-VOur.pQnNEF7AzkEwBnlOVzN24pFmWEoBE2ioyBsj8M')
+# Get bot token from environment variable
+bot_token = os.getenv('DISCORD_BOT_TOKEN')
+if not bot_token:
+    raise ValueError("DISCORD_BOT_TOKEN environment variable is not set")
+
+client.run(bot_token)
