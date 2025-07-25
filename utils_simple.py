@@ -109,13 +109,6 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
     embed.set_footer(text=f"Action ID: {discord.utils.utcnow().strftime('%Y%m%d_%H%M%S')}")
     
     try:
-        # Create ping content
-        ping_content = ""
-        if target_user:
-            ping_content = f"**Moderation Alert:** {target_mention} {moderator.mention}"
-        else:
-            ping_content = f"**Moderation Alert:** {moderator.mention}"
-        
         # Send embed with pings
         await log_channel.send(content=ping_content, embed=embed)
         print(f"✅ Sent embedded log message with pings")
@@ -128,7 +121,7 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                     # For now, just send the attachment URL with a descriptive message
                     # This preserves the evidence without complex file handling
                     await log_channel.send(
-                        content=f"📎 **Evidence {i+1}:** {attachment.filename}\n{attachment.url}"
+                        content=f"📎 **Evidence {i+1}:** {attachment.filename}\n{attachment}"
                     )
                     print(f"✅ Posted evidence link: {attachment.filename}")
                 except Exception as e:
