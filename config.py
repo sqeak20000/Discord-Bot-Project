@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Bot configuration
 ALLOWED_ROLES = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]

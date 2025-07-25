@@ -15,8 +15,7 @@ from discord.ext import commands
 from config import BOT_TOKEN
 from moderation import setup_moderation_commands
 
-# REPLACE THIS WITH YOUR ACTUAL DISCORD SERVER ID
-YOUR_GUILD_ID = 1017032575354683433  # <-- CHANGE THIS!
+YOUR_GUILD_ID = 1017032575354683433
 
 async def quick_sync():
     """Sync slash commands to a specific guild for immediate testing"""
