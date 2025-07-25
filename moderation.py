@@ -2,7 +2,7 @@ import discord
 import asyncio
 from config import ALLOWED_ROLES
 from utils import (
-    has_permission, has_evidence, log_action, notify_user_dm,
+    has_permission, has_evidence, log_action, notify_user_dm, ensure_evidence_provided,
     wait_for_user_response, delete_message_after_delay, parse_duration
 )
 
@@ -22,9 +22,10 @@ async def handle_ban_command(client, message):
         
         user_to_ban = next_message.mentions[0]
         
-        if not has_evidence(next_message):
-            await message.channel.send("❌ Please provide a link or image as evidence before banning.")
-            return
+        # Ensure evidence is provided (give second chance if missing)
+        evidence_message = await ensure_evidence_provided(client, message, next_message)
+        if not evidence_message:
+            return  # Command was cancelled due to lack of evidence
         
         # Ask for reason
         await message.channel.send("Please provide a reason for the ban:")
@@ -32,8 +33,8 @@ async def handle_ban_command(client, message):
         reason_message = await wait_for_user_response(client, message)
         ban_reason = reason_message.content.strip()
         
-        # Log the action
-        await log_action(client, next_message, "Banned", message.author, ban_reason)
+        # Log the action (use the evidence message for logging)
+        await log_action(client, evidence_message, "Banned", message.author, ban_reason)
         
         # Send DM notification to user before banning
         dm_sent = await notify_user_dm(
@@ -55,7 +56,7 @@ async def handle_ban_command(client, message):
             await message.channel.send("❌ Failed to ban the user.")
         
         # Delete the evidence message after delay
-        await delete_message_after_delay(next_message)
+        await delete_message_after_delay(evidence_message)
         
     except asyncio.TimeoutError:
         await message.channel.send("You took too long to respond!")
@@ -80,9 +81,10 @@ async def handle_kick_command(client, message):
         
         user_to_kick = next_message.mentions[0]
         
-        if not has_evidence(next_message):
-            await message.channel.send("❌ Please provide a link or image as evidence before kicking.")
-            return
+        # Ensure evidence is provided (give second chance if missing)
+        evidence_message = await ensure_evidence_provided(client, message, next_message)
+        if not evidence_message:
+            return  # Command was cancelled due to lack of evidence
         
         # Ask for reason
         await message.channel.send("Please provide a reason for the kick:")
@@ -90,8 +92,8 @@ async def handle_kick_command(client, message):
         reason_message = await wait_for_user_response(client, message)
         kick_reason = reason_message.content.strip()
         
-        # Log the action
-        await log_action(client, next_message, "Kicked", message.author, kick_reason)
+        # Log the action (use the evidence message for logging)
+        await log_action(client, evidence_message, "Kicked", message.author, kick_reason)
         
         # Send DM notification to user before kicking
         dm_sent = await notify_user_dm(
@@ -113,7 +115,7 @@ async def handle_kick_command(client, message):
             await message.channel.send("❌ Failed to kick the user.")
         
         # Delete the evidence message after delay
-        await delete_message_after_delay(next_message)
+        await delete_message_after_delay(evidence_message)
         
     except asyncio.TimeoutError:
         await message.channel.send("You took too long to respond!")
@@ -138,9 +140,10 @@ async def handle_timeout_command(client, message):
         
         user_to_timeout = next_message.mentions[0]
         
-        if not has_evidence(next_message):
-            await message.channel.send("❌ Please provide a link or image as evidence before timing out.")
-            return
+        # Ensure evidence is provided (give second chance if missing)
+        evidence_message = await ensure_evidence_provided(client, message, next_message)
+        if not evidence_message:
+            return  # Command was cancelled due to lack of evidence
         
         # Ask for duration
         await message.channel.send("How long should the timeout be? (e.g., 10m, 1h, 2d, 1w)")
@@ -158,8 +161,8 @@ async def handle_timeout_command(client, message):
         reason_message = await wait_for_user_response(client, message)
         timeout_reason = reason_message.content.strip()
         
-        # Log the action
-        await log_action(client, next_message, "Timed out", message.author, timeout_reason)
+        # Log the action (use the evidence message for logging)
+        await log_action(client, evidence_message, "Timed out", message.author, timeout_reason)
         
         # Send DM notification to user before timeout
         dm_sent = await notify_user_dm(
@@ -182,7 +185,7 @@ async def handle_timeout_command(client, message):
             await message.channel.send("❌ Failed to timeout the user.")
         
         # Delete the evidence message after delay (longer for timeout)
-        await delete_message_after_delay(next_message, delay=10)
+        await delete_message_after_delay(evidence_message, delay=10)
         
     except asyncio.TimeoutError:
         await message.channel.send("You took too long to respond!")

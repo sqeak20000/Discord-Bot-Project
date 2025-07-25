@@ -62,6 +62,27 @@ async def wait_for_user_response(client, original_message):
     
     return await client.wait_for('message', check=check, timeout=COMMAND_TIMEOUT)
 
+async def ensure_evidence_provided(client, message, evidence_message):
+    """Ensure evidence is provided, give a second chance if missing"""
+    if has_evidence(evidence_message):
+        return evidence_message
+    
+    # No evidence found, give them a second chance
+    await message.channel.send("❌ No evidence detected. Please send a message with a link or attachment as proof:")
+    
+    try:
+        second_chance_message = await wait_for_user_response(client, message)
+        
+        if has_evidence(second_chance_message):
+            return second_chance_message
+        else:
+            await message.channel.send("❌ Still no evidence provided. Command cancelled.")
+            return None
+            
+    except asyncio.TimeoutError:
+        await message.channel.send("❌ You took too long to provide evidence. Command cancelled.")
+        return None
+
 async def delete_message_after_delay(message, delay=MESSAGE_DELETE_DELAY):
     """Delete a message after a specified delay"""
     await asyncio.sleep(delay)
