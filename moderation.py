@@ -43,7 +43,9 @@ async def setup_moderation_commands(bot):
                 'attachments': [evidence] if evidence else [],
                 'content': f"/ban {user.mention} {reason}",
                 'author': interaction.user,
-                'channel': interaction.channel
+                'channel': interaction.channel,
+                'mentions': [user],  # Add the target user to mentions
+                'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
             })()
         else:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the ban.", ephemeral=True)
@@ -76,8 +78,11 @@ async def setup_moderation_commands(bot):
             
         except discord.Forbidden:
             await interaction.followup.send("❌ I don't have permission to ban this user.", ephemeral=True)
-        except discord.HTTPException:
+        except discord.HTTPException as e:
             await interaction.followup.send("❌ Failed to ban the user.", ephemeral=True)
+        except Exception as e:
+            print(f"Ban failed: Unexpected error - {e}")
+            await interaction.followup.send("❌ An unexpected error occurred during the ban.", ephemeral=True)
     
     @bot.tree.command(name="kick", description="Kick a user from the server")
     @app_commands.describe(
@@ -109,7 +114,9 @@ async def setup_moderation_commands(bot):
             'attachments': [evidence],
             'content': f"/kick {user.mention} {reason}",
             'author': interaction.user,
-            'channel': interaction.channel
+            'channel': interaction.channel,
+            'mentions': [user],  # Add the target user to mentions
+            'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
         })()
         
         try:
@@ -174,7 +181,9 @@ async def setup_moderation_commands(bot):
             'attachments': [evidence],
             'content': f"/timeout {user.mention} {duration} {reason}",
             'author': interaction.user,
-            'channel': interaction.channel
+            'channel': interaction.channel,
+            'mentions': [user],  # Add the target user to mentions
+            'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
         })()
         
         try:
