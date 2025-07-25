@@ -32,12 +32,32 @@ async def quick_sync():
             await setup_moderation_commands(bot)
             
             # Sync to specific guild (appears immediately)
-            guild = discord.Object(id=YOUR_GUILD_ID)
-            synced = await bot.tree.sync(guild=guild)
-            print(f"Synced {len(synced)} slash commands to guild {YOUR_GUILD_ID}")
+            print("Waiting 3 seconds to avoid rate limits...")
+            await asyncio.sleep(3)
             
-            for command in synced:
-                print(f"- /{command.name}: {command.description}")
+            guild = discord.Object(id=YOUR_GUILD_ID)
+            
+            # Retry logic for rate limits
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    synced = await bot.tree.sync(guild=guild)
+                    print(f"✅ Synced {len(synced)} slash commands to guild {YOUR_GUILD_ID}")
+                    
+                    for command in synced:
+                        print(f"- /{command.name}: {command.description}")
+                    break
+                    
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limited
+                        retry_after = getattr(e.response, 'headers', {}).get('Retry-After', 10)
+                        print(f"⚠️  Rate limited! Waiting {retry_after} seconds before retry {attempt + 1}/{max_retries}...")
+                        await asyncio.sleep(float(retry_after))
+                        if attempt == max_retries - 1:
+                            print("❌ Failed to sync after maximum retries.")
+                            return
+                    else:
+                        raise e
                 
             print(f"\n✅ Commands should now appear immediately in your server!")
             print(f"If you don't see them, make sure:")

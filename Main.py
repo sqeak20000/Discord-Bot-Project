@@ -1,4 +1,5 @@
 import discord
+import asyncio
 from discord.ext import commands
 from config import BOT_TOKEN
 from moderation import setup_moderation_commands
@@ -14,13 +15,42 @@ async def on_ready():
     print(f'Logged in as {bot.user}')
     # Setup and sync slash commands when bot starts up
     try:
+        print("Setting up moderation commands...")
         await setup_moderation_commands(bot)
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands")
-        for command in synced:
-            print(f"- /{command.name}: {command.description}")
+        
+        # Add delay to avoid rate limits on startup
+        print("Waiting 5 seconds before syncing to avoid rate limits...")
+        await asyncio.sleep(5)
+        
+        # Retry logic for rate-limited sync
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"Syncing slash commands (attempt {attempt + 1}/{max_retries})...")
+                synced = await bot.tree.sync()
+                print(f"✅ Synced {len(synced)} slash commands")
+                for command in synced:
+                    print(f"- /{command.name}: {command.description}")
+                break
+                
+            except discord.HTTPException as e:
+                if e.status == 429:  # Rate limited
+                    retry_after = getattr(e.response, 'headers', {}).get('Retry-After', 15)
+                    print(f"⚠️  Rate limited! Waiting {retry_after} seconds before retry...")
+                    await asyncio.sleep(float(retry_after))
+                    if attempt == max_retries - 1:
+                        print("❌ Failed to sync after maximum retries. Commands may not be available.")
+                        print("💡 Try running sync_commands.py manually later.")
+                else:
+                    print(f"❌ HTTP Error during sync: {e}")
+                    break
+            except Exception as sync_error:
+                print(f"❌ Unexpected error during sync: {sync_error}")
+                break
+                
     except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
+        print(f"❌ Failed to setup slash commands: {e}")
+        print("🤖 Bot will continue running with message commands only.")
 
 @bot.event
 async def on_message(message):
