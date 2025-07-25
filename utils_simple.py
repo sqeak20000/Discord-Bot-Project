@@ -121,7 +121,7 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                     # For now, just send the attachment URL with a descriptive message
                     # This preserves the evidence without complex file handling
                     await log_channel.send(
-                        content=f"📎 **Evidence {i+1}:** {attachment.filename}\n{attachment}"
+                        content=f"📎 **Evidence {i+1}:** {attachment.filename}\n{attachment.url}"
                     )
                     print(f"✅ Posted evidence link: {attachment.filename}")
                 except Exception as e:
