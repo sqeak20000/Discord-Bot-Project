@@ -1,5 +1,6 @@
 import discord
 import asyncio
+import io
 from datetime import timedelta
 from config import LOG_CHANNEL_ID, COMMAND_TIMEOUT, MESSAGE_DELETE_DELAY, RATE_LIMIT_DELAY, RATE_LIMIT_RETRY_DELAY, ATTACHMENT_SEND_DELAY
 
@@ -164,7 +165,7 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
             print(f"❌ Unexpected error sending embed: {e}")
             return
         
-        # Send proof attachments separately with rate limiting (simplified)
+        # Send proof attachments separately with rate limiting (download and re-upload)
         try:
             if hasattr(message, 'attachments') and message.attachments:
                 print(f"📎 Processing {len(message.attachments)} attachments...")
@@ -173,10 +174,31 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                         await asyncio.sleep(ATTACHMENT_SEND_DELAY)
                     
                     try:
-                        att_message = await log_channel.send(f"📎 Evidence: {attachment.url}")
-                        print(f"✅ Sent attachment {i+1}: {att_message.id}")
+                        # Download the attachment data
+                        print(f"⬇️ Downloading attachment: {attachment.filename}")
+                        attachment_data = await attachment.read()
+                        
+                        # Create a new Discord file object
+                        discord_file = discord.File(
+                            fp=io.BytesIO(attachment_data),
+                            filename=f"evidence_{i+1}_{attachment.filename}"
+                        )
+                        
+                        # Upload the file to the log channel
+                        att_message = await log_channel.send(
+                            content=f"📎 **Evidence {i+1}:** {attachment.filename}",
+                            file=discord_file
+                        )
+                        print(f"✅ Re-uploaded attachment {i+1}: {att_message.id}")
+                        
                     except Exception as attachment_error:
-                        print(f"❌ Error sending attachment {i}: {attachment_error}")
+                        print(f"❌ Error re-uploading attachment {i}: {attachment_error}")
+                        # Fallback to link if download/upload fails
+                        try:
+                            fallback_message = await log_channel.send(f"📎 Evidence {i+1} (link): {attachment.url}")
+                            print(f"⚠️ Sent fallback link for attachment {i+1}: {fallback_message.id}")
+                        except Exception as fallback_error:
+                            print(f"❌ Error sending fallback link: {fallback_error}")
             else:
                 print("ℹ️  No attachments to process")
         except Exception as e:
