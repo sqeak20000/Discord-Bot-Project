@@ -12,10 +12,13 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    # Sync slash commands when bot starts up
+    # Setup and sync slash commands when bot starts up
     try:
+        await setup_moderation_commands(bot)
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} slash commands")
+        for command in synced:
+            print(f"- /{command.name}: {command.description}")
     except Exception as e:
         print(f"Failed to sync slash commands: {e}")
 
@@ -37,12 +40,5 @@ async def on_message(message):
         from moderation import handle_timeout_command
         await handle_timeout_command(bot, message)
 
-# Setup slash commands
-async def main():
-    async with bot:
-        await setup_moderation_commands(bot)
-        await bot.start(BOT_TOKEN)
-
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    bot.run(BOT_TOKEN)
