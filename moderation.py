@@ -3,9 +3,41 @@ import asyncio
 from discord import app_commands
 from config import ALLOWED_ROLES
 from utils import (
-    has_permission, has_evidence, log_action, notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
+    has_permission, has_evidence, notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
     wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command, safe_send_message
 )
+
+# Temporary simple logging function for debugging
+async def log_action_simple(client, message, action_type, moderator, reason=None, duration=None):
+    """TEMPORARY: Simple logging for debugging"""
+    from config import LOG_CHANNEL_ID
+    
+    print(f"🔍 SIMPLE LOG: {action_type} by {moderator.display_name}")
+    
+    log_channel = client.get_channel(LOG_CHANNEL_ID)
+    if not log_channel:
+        print(f"❌ Log channel {LOG_CHANNEL_ID} not found!")
+        return
+    
+    print(f"✅ Found log channel: #{log_channel.name}")
+    
+    # Get target user
+    target_user = "Unknown"
+    if hasattr(message, 'mentions') and message.mentions:
+        target_user = message.mentions[0].display_name
+    
+    # Simple log message
+    log_text = f"🔨 **{action_type}**: {target_user} by {moderator.display_name}\n📝 **Reason**: {reason or 'No reason'}"
+    if duration:
+        log_text += f"\n⏰ **Duration**: {duration}"
+    
+    try:
+        sent_msg = await log_channel.send(log_text)
+        print(f"✅ SUCCESSFULLY LOGGED! Message ID: {sent_msg.id}")
+    except Exception as e:
+        print(f"❌ LOGGING FAILED: {e}")
+        import traceback
+        traceback.print_exc()
 
 async def setup_moderation_commands(bot):
     """Setup slash commands for moderation"""
@@ -53,7 +85,7 @@ async def setup_moderation_commands(bot):
         
         try:
             # Log the action (use the evidence message for logging)
-            await log_action(bot, evidence_msg, "Banned", interaction.user, reason)
+            await log_action_simple(bot, evidence_msg, "Banned", interaction.user, reason)
             
             # Send DM notification to user before banning
             dm_sent = await notify_user_dm(
@@ -121,7 +153,7 @@ async def setup_moderation_commands(bot):
         
         try:
             # Log the action
-            await log_action(bot, evidence_msg, "Kicked", interaction.user, reason)
+            await log_action_simple(bot, evidence_msg, "Kicked", interaction.user, reason)
             
             # Send DM notification to user before kicking
             dm_sent = await notify_user_dm(
@@ -188,7 +220,7 @@ async def setup_moderation_commands(bot):
         
         try:
             # Log the action
-            await log_action(bot, evidence_msg, "Timed out", interaction.user, reason, duration)
+            await log_action_simple(bot, evidence_msg, "Timed out", interaction.user, reason, duration)
             
             # Send DM notification to user before timeout
             dm_sent = await notify_user_dm(
@@ -281,7 +313,7 @@ async def handle_ban_command(client, message):
     # Common ban logic for both formats
     try:
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Banned", message.author, ban_reason)
+        await log_action_simple(client, evidence_message, "Banned", message.author, ban_reason)
         
         # Send DM notification to user before banning
         dm_sent = await notify_user_dm(
@@ -376,7 +408,7 @@ async def handle_kick_command(client, message):
     # Common kick logic for both formats
     try:
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Kicked", message.author, kick_reason)
+        await log_action_simple(client, evidence_message, "Kicked", message.author, kick_reason)
         
         # Send DM notification to user before kicking
         dm_sent = await notify_user_dm(
@@ -483,7 +515,7 @@ async def handle_timeout_command(client, message):
     # Common timeout logic for both formats
     try:
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Timed out", message.author, timeout_reason, duration_text)
+        await log_action_simple(client, evidence_message, "Timed out", message.author, timeout_reason, duration_text)
         
         # Send DM notification to user before timeout
         dm_sent = await notify_user_dm(

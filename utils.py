@@ -33,10 +33,15 @@ def has_evidence(message):
 async def log_action(client, message, action_type, moderator, reason=None, duration=None):
     """Log moderation action to the log channel with embedded format"""
     try:
+        print(f"🔍 Starting log_action: {action_type} by {moderator.display_name}")
+        
         log_channel = client.get_channel(LOG_CHANNEL_ID)
         if not log_channel:
-            print(f"Warning: Log channel {LOG_CHANNEL_ID} not found")
+            print(f"❌ Error: Log channel {LOG_CHANNEL_ID} not found!")
+            print(f"📋 Available channels: {[c.name for c in client.get_all_channels() if hasattr(c, 'name')][:10]}")
             return
+        
+        print(f"✅ Found log channel: #{log_channel.name}")
         
         # Determine embed color based on action type
         color_map = {
@@ -54,6 +59,8 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
             timestamp=discord.utils.utcnow()
         )
         
+        print(f"📝 Created embed with title: 🔨 User {action_type}")
+        
         # Extract user mention from the message content or mentions
         target_user = None
         try:
@@ -64,11 +71,13 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                     value=f"{target_user.mention}\n`{target_user.display_name}` (ID: {target_user.id})", 
                     inline=True
                 )
+                print(f"👤 Target user: {target_user.display_name}")
             else:
                 # Fallback if no mentions found
                 embed.add_field(name="👤 Target User", value="Unknown", inline=True)
+                print("⚠️  No target user found in mentions")
         except Exception as e:
-            print(f"Error processing target user: {e}")
+            print(f"❌ Error processing target user: {e}")
             embed.add_field(name="👤 Target User", value="Error retrieving user", inline=True)
         
         # Add moderator info
@@ -78,21 +87,25 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                 value=f"{moderator.mention}\n`{moderator.display_name}`", 
                 inline=True
             )
+            print(f"👮 Moderator: {moderator.display_name}")
         except Exception as e:
-            print(f"Error processing moderator: {e}")
+            print(f"❌ Error processing moderator: {e}")
             embed.add_field(name="👮 Moderator", value="Unknown moderator", inline=True)
         
         # Add duration if applicable (for timeouts)
         if duration:
             embed.add_field(name="⏰ Duration", value=str(duration), inline=True)
+            print(f"⏰ Duration: {duration}")
         
         # Add reason
         if reason:
             # Truncate reason if too long
             reason_text = str(reason)[:1000] if len(str(reason)) > 1000 else str(reason)
             embed.add_field(name="📝 Reason", value=reason_text, inline=False)
+            print(f"📝 Reason: {reason_text}")
         else:
             embed.add_field(name="📝 Reason", value="No specific reason provided", inline=False)
+            print("📝 No reason provided")
         
         # Add channel info safely
         try:
@@ -102,8 +115,9 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                     value=f"{message.channel.mention} (`#{message.channel.name}`)", 
                     inline=True
                 )
+                print(f"📍 Channel: #{message.channel.name}")
         except Exception as e:
-            print(f"Error processing channel info: {e}")
+            print(f"❌ Error processing channel info: {e}")
             embed.add_field(name="📍 Channel", value="Unknown channel", inline=True)
         
         # Add original message link if available
@@ -114,8 +128,9 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                     value=f"[Jump to message]({message.jump_url})", 
                     inline=True
                 )
+                print("🔗 Added jump link")
         except Exception as e:
-            print(f"Error processing message link: {e}")
+            print(f"❌ Error processing message link: {e}")
         
         # Set footer with moderator info
         try:
@@ -124,37 +139,53 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
                 icon_url=moderator.display_avatar.url if moderator.display_avatar else None
             )
         except Exception as e:
-            print(f"Error setting footer: {e}")
+            print(f"❌ Error setting footer: {e}")
             embed.set_footer(text="Moderation action performed")
         
         # Send the main embed
+        print("📤 Attempting to send embed to log channel...")
         try:
-            await log_channel.send(embed=embed)
-        except Exception as e:
-            print(f"Error sending main embed: {e}")
+            sent_message = await log_channel.send(embed=embed)
+            print(f"✅ Successfully sent log embed! Message ID: {sent_message.id}")
+        except discord.Forbidden:
+            print("❌ Permission denied: Bot cannot send messages to log channel")
+            return
+        except discord.HTTPException as e:
+            print(f"❌ HTTP Error sending embed: {e}")
             # Fallback to simple text message
             try:
                 fallback_message = f"🔨 {action_type}: {target_user.mention if target_user else 'Unknown'} by {moderator.mention} - {reason or 'No reason'}"
-                await log_channel.send(fallback_message)
+                sent_fallback = await log_channel.send(fallback_message)
+                print(f"✅ Sent fallback message instead: {sent_fallback.id}")
             except Exception as fallback_error:
-                print(f"Error sending fallback message: {fallback_error}")
+                print(f"❌ Error sending fallback message: {fallback_error}")
+                return
+        except Exception as e:
+            print(f"❌ Unexpected error sending embed: {e}")
+            return
         
         # Send proof attachments separately with rate limiting (simplified)
         try:
             if hasattr(message, 'attachments') and message.attachments:
+                print(f"📎 Processing {len(message.attachments)} attachments...")
                 for i, attachment in enumerate(message.attachments):
                     if i > 0:  # Add delay between attachments
                         await asyncio.sleep(ATTACHMENT_SEND_DELAY)
                     
                     try:
-                        await log_channel.send(f"📎 Evidence: {attachment.url}")
+                        att_message = await log_channel.send(f"📎 Evidence: {attachment.url}")
+                        print(f"✅ Sent attachment {i+1}: {att_message.id}")
                     except Exception as attachment_error:
-                        print(f"Error sending attachment {i}: {attachment_error}")
+                        print(f"❌ Error sending attachment {i}: {attachment_error}")
+            else:
+                print("ℹ️  No attachments to process")
         except Exception as e:
-            print(f"Error processing attachments: {e}")
+            print(f"❌ Error processing attachments: {e}")
+            
+        print("✅ log_action completed successfully")
                         
     except Exception as e:
-        print(f"Critical error in log_action: {e}")
+        print(f"💥 Critical error in log_action: {e}")
         import traceback
         traceback.print_exc()
 
