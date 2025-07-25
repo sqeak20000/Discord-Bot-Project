@@ -33,27 +33,14 @@ async def handle_ban_command(client, message):
         reason_message = await wait_for_user_response(client, message)
         ban_reason = reason_message.content.strip()
         
-        # Ask for ban duration
-        await message.channel.send("How long should the ban be? (e.g., 10m, 1h, 2d, 1w, or 'permanent')")
-        
-        duration_message = await wait_for_user_response(client, message)
-        ban_duration = parse_duration(duration_message.content)
-        
-        if ban_duration == "invalid":
-            await message.channel.send("❌ Invalid duration format. Use 10m, 1h, 2d, 1w, or 'permanent'")
-            return
-        
         # Ask if they want to delete user's messages
         delete_messages = await ask_yes_no_question(client, message, "Do you want to delete the user's messages from the last 7 days?")
         
         # Determine delete_message_days parameter
         delete_message_days = 7 if delete_messages else 0
         
-        # Create duration text for logs and DMs
-        duration_text = "permanent" if ban_duration is None else duration_message.content.lower().strip()
-        
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, f"Banned ({duration_text})", message.author, ban_reason)
+        await log_action(client, evidence_message, "Banned", message.author, ban_reason)
         
         # Send DM notification to user before banning
         dm_sent = await notify_user_dm(
@@ -61,8 +48,7 @@ async def handle_ban_command(client, message):
             "Banned", 
             message.guild.name, 
             message.author, 
-            reason=ban_reason,
-            duration=duration_text
+            reason=ban_reason
         )
         
         # Perform the ban
@@ -74,7 +60,7 @@ async def handle_ban_command(client, message):
             )
             dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
             delete_status = f" Messages from last 7 days deleted." if delete_messages else ""
-            await message.channel.send(f"✅ {user_to_ban.mention} has been banned for {duration_text}!{dm_status}{delete_status}")
+            await message.channel.send(f"✅ {user_to_ban.mention} has been banned!{dm_status}{delete_status}")
             
             # If it's a temporary ban, we could add unban logic here in the future
             # For now, we'll just log it as a temporary ban
