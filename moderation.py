@@ -2,7 +2,7 @@ import discord
 import asyncio
 from config import ALLOWED_ROLES
 from utils import (
-    has_permission, has_evidence, log_action, notify_user_dm, ensure_evidence_provided,
+    has_permission, has_evidence, log_action, notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
     wait_for_user_response, delete_message_after_delay, parse_duration
 )
 
@@ -33,8 +33,27 @@ async def handle_ban_command(client, message):
         reason_message = await wait_for_user_response(client, message)
         ban_reason = reason_message.content.strip()
         
+        # Ask for ban duration
+        await message.channel.send("How long should the ban be? (e.g., 10m, 1h, 2d, 1w, or 'permanent')")
+        
+        duration_message = await wait_for_user_response(client, message)
+        ban_duration = parse_duration(duration_message.content)
+        
+        if ban_duration == "invalid":
+            await message.channel.send("❌ Invalid duration format. Use 10m, 1h, 2d, 1w, or 'permanent'")
+            return
+        
+        # Ask if they want to delete user's messages
+        delete_messages = await ask_yes_no_question(client, message, "Do you want to delete the user's messages from the last 7 days?")
+        
+        # Determine delete_message_days parameter
+        delete_message_days = 7 if delete_messages else 0
+        
+        # Create duration text for logs and DMs
+        duration_text = "permanent" if ban_duration is None else duration_message.content.lower().strip()
+        
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Banned", message.author, ban_reason)
+        await log_action(client, evidence_message, f"Banned ({duration_text})", message.author, ban_reason)
         
         # Send DM notification to user before banning
         dm_sent = await notify_user_dm(
@@ -42,14 +61,24 @@ async def handle_ban_command(client, message):
             "Banned", 
             message.guild.name, 
             message.author, 
-            reason=ban_reason
+            reason=ban_reason,
+            duration=duration_text
         )
         
         # Perform the ban
         try:
-            await message.guild.ban(user_to_ban, reason=f"Banned by {message.author}: {ban_reason}")
+            await message.guild.ban(
+                user_to_ban, 
+                reason=f"Banned by {message.author}: {ban_reason}",
+                delete_message_days=delete_message_days
+            )
             dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
-            await message.channel.send(f"✅ {user_to_ban.mention} has been banned!{dm_status}")
+            delete_status = f" Messages from last 7 days deleted." if delete_messages else ""
+            await message.channel.send(f"✅ {user_to_ban.mention} has been banned for {duration_text}!{dm_status}{delete_status}")
+            
+            # If it's a temporary ban, we could add unban logic here in the future
+            # For now, we'll just log it as a temporary ban
+            
         except discord.Forbidden:
             await message.channel.send("❌ I don't have permission to ban this user.")
         except discord.HTTPException:

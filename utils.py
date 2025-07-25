@@ -62,6 +62,26 @@ async def wait_for_user_response(client, original_message):
     
     return await client.wait_for('message', check=check, timeout=COMMAND_TIMEOUT)
 
+async def ask_yes_no_question(client, message, question):
+    """Ask a yes/no question and return True for yes, False for no"""
+    await message.channel.send(f"{question} (yes/no)")
+    
+    try:
+        response = await wait_for_user_response(client, message)
+        answer = response.content.lower().strip()
+        
+        if answer in ['yes', 'y', 'true', '1']:
+            return True
+        elif answer in ['no', 'n', 'false', '0']:
+            return False
+        else:
+            await message.channel.send("❌ Please answer with 'yes' or 'no'. Defaulting to 'no'.")
+            return False
+            
+    except asyncio.TimeoutError:
+        await message.channel.send("❌ You took too long to respond. Defaulting to 'no'.")
+        return False
+
 async def ensure_evidence_provided(client, message, evidence_message):
     """Ensure evidence is provided, give a second chance if missing"""
     if has_evidence(evidence_message):
@@ -94,10 +114,12 @@ async def delete_message_after_delay(message, delay=MESSAGE_DELETE_DELAY):
         pass  # Message was already deleted
 
 def parse_duration(duration_text):
-    """Parse duration string (e.g., '10m', '1h', '2d', '1w') into a datetime object"""
+    """Parse duration string (e.g., '10m', '1h', '2d', '1w', 'permanent') into a datetime object"""
     duration_text = duration_text.lower().strip()
     
-    if duration_text.endswith('m'):
+    if duration_text in ['permanent', 'perm', 'forever', 'never']:
+        return None  # None indicates permanent ban
+    elif duration_text.endswith('m'):
         minutes = int(duration_text[:-1])
         return discord.utils.utcnow() + timedelta(minutes=minutes)
     elif duration_text.endswith('h'):
@@ -110,4 +132,4 @@ def parse_duration(duration_text):
         weeks = int(duration_text[:-1])
         return discord.utils.utcnow() + timedelta(weeks=weeks)
     else:
-        return None
+        return "invalid"  # Invalid format
