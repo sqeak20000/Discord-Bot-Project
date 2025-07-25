@@ -1,7 +1,24 @@
 import discord
 import asyncio
 from datetime import timedelta
-from config import LOG_CHANNEL_ID, COMMAND_TIMEOUT, MESSAGE_DELETE_DELAY
+from config import LOG_CHANNEL_ID, COMMAND_TIMEOUT, MESSAGE_DELETE_DELAY, RATE_LIMIT_DELAY, RATE_LIMIT_RETRY_DELAY, ATTACHMENT_SEND_DELAY
+
+async def safe_send_message(channel, content=None, embed=None, file=None):
+    """Send a message with rate limit handling"""
+    try:
+        return await channel.send(content=content, embed=embed, file=file)
+    except discord.HTTPException as e:
+        if e.status == 429:  # Rate limited
+            print(f"Rate limited when sending message, waiting...")
+            await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
+            try:
+                return await channel.send(content=content, embed=embed, file=file)
+            except:
+                print(f"Failed to send message after retry")
+                return None
+        else:
+            print(f"Error sending message: {e}")
+            return None
 
 def has_permission(user, allowed_roles):
     """Check if user has any of the allowed roles"""
@@ -21,9 +38,22 @@ async def log_action(client, message, action_type, moderator, reason=None):
         reason_text = f" - Reason: {reason}" if reason else ""
         await log_channel.send(f"{message.content} {action_type} by {moderator.mention} {reason_text}")
         
-        # Send any attachments (images)
-        for attachment in message.attachments:
-            await log_channel.send(attachment)
+        # Send attachments with delay to avoid rate limiting
+        for i, attachment in enumerate(message.attachments):
+            if i > 0:  # Add delay between attachments
+                await asyncio.sleep(ATTACHMENT_SEND_DELAY)
+            try:
+                await log_channel.send(attachment.url)
+            except discord.HTTPException as e:
+                if e.status == 429:  # Rate limited
+                    print(f"Rate limited when logging attachment, waiting...")
+                    await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
+                    try:
+                        await log_channel.send(attachment.url)
+                    except:
+                        print(f"Failed to log attachment after retry: {attachment.url}")
+                else:
+                    print(f"Error logging attachment: {e}")
 
 async def notify_user_dm(user, action_type, guild_name, moderator, reason=None, duration=None):
     """Send a DM to the user informing them about the moderation action"""
@@ -51,23 +81,55 @@ async def notify_user_dm(user, action_type, guild_name, moderator, reason=None, 
     except discord.Forbidden:
         # User has DMs disabled or blocked the bot
         return False
-    except discord.HTTPException:
-        # Other error sending DM
-        return False
+    except discord.HTTPException as e:
+        if e.status == 429:  # Rate limited
+            print(f"Rate limited when sending DM to {user.display_name}, waiting...")
+            await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
+            try:
+                await user.send(embed=embed)
+                return True
+            except:
+                print(f"Failed to send DM to {user.display_name} after retry")
+                return False
+        else:
+            print(f"Error sending DM: {e}")
+            return False
 
 async def wait_for_user_response(client, original_message):
-    """Wait for the next message from the same user in the same channel"""
+    """Wait for the next message from the same user in the same channel with rate limit handling"""
     def check(msg):
         return msg.author == original_message.author and msg.channel == original_message.channel
     
-    return await client.wait_for('message', check=check, timeout=COMMAND_TIMEOUT)
+    try:
+        return await client.wait_for('message', check=check, timeout=COMMAND_TIMEOUT)
+    except discord.HTTPException as e:
+        if e.status == 429:  # Rate limited
+            print(f"Rate limited in wait_for_user_response, waiting...")
+            await asyncio.sleep(RATE_LIMIT_DELAY)
+        return None
+    except asyncio.TimeoutError:
+        await original_message.channel.send("Command timed out. Please try again.")
+        return None
 
 async def ask_yes_no_question(client, message, question):
-    """Ask a yes/no question and return True for yes, False for no"""
-    await message.channel.send(f"{question} (yes/no)")
+    """Ask a yes/no question and return True for yes, False for no with rate limit handling"""
+    try:
+        await message.channel.send(f"{question} (yes/no)")
+    except discord.HTTPException as e:
+        if e.status == 429:  # Rate limited
+            print(f"Rate limited when asking question, waiting...")
+            await asyncio.sleep(RATE_LIMIT_DELAY)
+            try:
+                await message.channel.send(f"{question} (yes/no)")
+            except:
+                print(f"Failed to send question after retry")
+                return None
     
     try:
         response = await wait_for_user_response(client, message)
+        if response is None:
+            return None
+            
         answer = response.content.lower().strip()
         
         if answer in ['yes', 'y', 'true', '1']:
