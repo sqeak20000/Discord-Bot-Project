@@ -82,6 +82,56 @@ async def ask_yes_no_question(client, message, question):
         await message.channel.send("❌ You took too long to respond. Defaulting to 'no'.")
         return False
 
+def parse_yes_no(text):
+    """Parse a yes/no string and return True for yes, False for no"""
+    text = text.lower().strip()
+    return text in ['yes', 'y', 'true']
+
+def parse_moderation_command(message_content):
+    """Parse moderation command arguments from a single message
+    
+    Examples:
+    - "!ban @user yes spamming chat" -> (user, True, "spamming chat")
+    - "!kick @user being rude" -> (user, "being rude")
+    - "!timeout @user 1h harassment" -> (user, "1h", "harassment")
+    """
+    parts = message_content.split()
+    command = parts[0].lower()
+    
+    # Remove the command (first part)
+    parts = parts[1:]
+    
+    if len(parts) < 2:  # Need at least: mention, reason
+        return None
+    
+    # Extract user mention (first remaining part)
+    user_mention = parts[0]
+    if not user_mention.startswith('<@'):
+        return None
+    
+    if command == '!ban':
+        # Ban: mention, yes/no, reason
+        if len(parts) < 3:  # Need: mention, yes/no, reason
+            return None
+        delete_messages = parse_yes_no(parts[1])
+        reason = ' '.join(parts[2:])
+        return user_mention, delete_messages, reason
+        
+    elif command == '!kick':
+        # Kick: mention, reason (no message deletion option)
+        reason = ' '.join(parts[1:])
+        return user_mention, reason
+        
+    elif command == '!timeout':
+        # Timeout: mention, duration, reason
+        if len(parts) < 3:  # Need: mention, duration, reason
+            return None
+        duration = parts[1]
+        reason = ' '.join(parts[2:])
+        return user_mention, duration, reason
+    
+    return None
+
 async def ensure_evidence_provided(client, message, evidence_message):
     """Ensure evidence is provided, give a second chance if missing"""
     if has_evidence(evidence_message):
