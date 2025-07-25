@@ -30,30 +30,168 @@ def has_evidence(message):
     has_attachment = len(message.attachments) > 0
     return has_link or has_attachment
 
-async def log_action(client, message, action_type, moderator, reason=None):
-    """Log moderation action to the log channel"""
+async def log_action(client, message, action_type, moderator, reason=None, duration=None):
+    """Log moderation action to the log channel with embedded format"""
     log_channel = client.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
-        # Send the text content first with reason
-        reason_text = f" - Reason: {reason}" if reason else ""
-        await log_channel.send(f"{message.content} {action_type} by {moderator.mention} {reason_text}")
+    if not log_channel:
+        print(f"Warning: Log channel {LOG_CHANNEL_ID} not found")
+        return
+    
+    # Determine embed color based on action type
+    color_map = {
+        "Banned": discord.Color.red(),
+        "Kicked": discord.Color.orange(), 
+        "Timed out": discord.Color.yellow(),
+        "Warned": discord.Color.blue()
+    }
+    embed_color = color_map.get(action_type, discord.Color.gray())
+    
+    # Create the main embed
+    embed = discord.Embed(
+        title=f"🔨 User {action_type}",
+        color=embed_color,
+        timestamp=discord.utils.utcnow()
+    )
+    
+    # Extract user mention from the message content or attachments
+    target_user = None
+    if hasattr(message, 'mentions') and message.mentions:
+        target_user = message.mentions[0]
+        embed.add_field(
+            name="👤 Target User", 
+            value=f"{target_user.mention}\n`{target_user.display_name}` (ID: {target_user.id})", 
+            inline=True
+        )
+    else:
+        # Fallback if no mentions found
+        embed.add_field(name="👤 Target User", value="Unknown", inline=True)
+    
+    # Add moderator info
+    embed.add_field(
+        name="👮 Moderator", 
+        value=f"{moderator.mention}\n`{moderator.display_name}`", 
+        inline=True
+    )
+    
+    # Add duration if applicable (for timeouts)
+    if duration:
+        embed.add_field(name="⏰ Duration", value=duration, inline=True)
+    
+    # Add reason
+    if reason:
+        embed.add_field(name="📝 Reason", value=reason, inline=False)
+    else:
+        embed.add_field(name="📝 Reason", value="No specific reason provided", inline=False)
+    
+    # Add channel info
+    embed.add_field(
+        name="📍 Channel", 
+        value=f"{message.channel.mention} (`#{message.channel.name}`)", 
+        inline=True
+    )
+    
+    # Add original message link if available
+    if hasattr(message, 'jump_url'):
+        embed.add_field(
+            name="🔗 Original Message", 
+            value=f"[Jump to message]({message.jump_url})", 
+            inline=True
+        )
+    
+    # Set footer with moderator info
+    embed.set_footer(
+        text=f"Action performed by {moderator.display_name}",
+        icon_url=moderator.display_avatar.url if moderator.display_avatar else None
+    )
+    
+    try:
+        # Send the main embed
+        await log_channel.send(embed=embed)
         
-        # Send attachments with delay to avoid rate limiting
-        for i, attachment in enumerate(message.attachments):
-            if i > 0:  # Add delay between attachments
-                await asyncio.sleep(ATTACHMENT_SEND_DELAY)
+        # Send proof attachments separately with rate limiting
+        if hasattr(message, 'attachments') and message.attachments:
+            proof_embed = discord.Embed(
+                title="📸 Evidence/Proof",
+                color=embed_color,
+                description="Attachments provided as evidence:"
+            )
+            
+            attachment_links = []
+            for i, attachment in enumerate(message.attachments):
+                if i > 0:  # Add delay between processing attachments
+                    await asyncio.sleep(ATTACHMENT_SEND_DELAY)
+                
+                attachment_links.append(f"[{attachment.filename}]({attachment.url})")
+                
+                # For images, try to set as thumbnail or image
+                if attachment.content_type and attachment.content_type.startswith('image/'):
+                    if i == 0:  # Set first image as the thumbnail
+                        proof_embed.set_image(url=attachment.url)
+            
+            # Add all attachment links to embed
+            if attachment_links:
+                proof_embed.add_field(
+                    name="📎 Files", 
+                    value="\n".join(attachment_links), 
+                    inline=False
+                )
+            
             try:
-                await log_channel.send(attachment.url)
+                await log_channel.send(embed=proof_embed)
             except discord.HTTPException as e:
                 if e.status == 429:  # Rate limited
-                    print(f"Rate limited when logging attachment, waiting...")
+                    print(f"Rate limited when sending proof embed, waiting...")
                     await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
                     try:
-                        await log_channel.send(attachment.url)
+                        await log_channel.send(embed=proof_embed)
                     except:
-                        print(f"Failed to log attachment after retry: {attachment.url}")
+                        print(f"Failed to send proof embed after retry")
                 else:
-                    print(f"Error logging attachment: {e}")
+                    print(f"Error sending proof embed: {e}")
+        
+        # Handle text links in message content
+        message_content = getattr(message, 'content', '')
+        if message_content and ('http://' in message_content or 'https://' in message_content):
+            links_embed = discord.Embed(
+                title="🔗 Additional Links",
+                color=embed_color,
+                description="Links provided in the original message:"
+            )
+            
+            # Extract URLs from message content
+            import re
+            url_pattern = r'https?://[^\s]+'
+            urls = re.findall(url_pattern, message_content)
+            
+            if urls:
+                links_text = "\n".join([f"• {url}" for url in urls[:5]])  # Limit to 5 links
+                links_embed.add_field(name="📋 Links", value=links_text, inline=False)
+                
+                try:
+                    await log_channel.send(embed=links_embed)
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limited
+                        print(f"Rate limited when sending links embed, waiting...")
+                        await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
+                        try:
+                            await log_channel.send(embed=links_embed)
+                        except:
+                            print(f"Failed to send links embed after retry")
+                    else:
+                        print(f"Error sending links embed: {e}")
+                        
+    except discord.HTTPException as e:
+        if e.status == 429:  # Rate limited
+            print(f"Rate limited when logging action, waiting...")
+            await asyncio.sleep(RATE_LIMIT_RETRY_DELAY)
+            try:
+                await log_channel.send(embed=embed)
+            except:
+                print(f"Failed to log action after retry")
+        else:
+            print(f"Error logging action: {e}")
+    except Exception as e:
+        print(f"Unexpected error in log_action: {e}")
 
 async def notify_user_dm(user, action_type, guild_name, moderator, reason=None, duration=None):
     """Send a DM to the user informing them about the moderation action"""

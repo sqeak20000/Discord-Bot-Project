@@ -50,7 +50,7 @@ async def setup_moderation_commands(bot):
             return
         
         try:
-            # Log the action
+            # Log the action (use the evidence message for logging)
             await log_action(bot, evidence_msg, "Banned", interaction.user, reason)
             
             # Send DM notification to user before banning
@@ -179,7 +179,7 @@ async def setup_moderation_commands(bot):
         
         try:
             # Log the action
-            await log_action(bot, evidence_msg, "Timed out", interaction.user, reason)
+            await log_action(bot, evidence_msg, "Timed out", interaction.user, reason, duration)
             
             # Send DM notification to user before timeout
             dm_sent = await notify_user_dm(
@@ -474,7 +474,7 @@ async def handle_timeout_command(client, message):
     # Common timeout logic for both formats
     try:
         # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Timed out", message.author, timeout_reason)
+        await log_action(client, evidence_message, "Timed out", message.author, timeout_reason, duration_text)
         
         # Send DM notification to user before timeout
         dm_sent = await notify_user_dm(
