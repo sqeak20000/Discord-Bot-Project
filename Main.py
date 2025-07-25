@@ -1,30 +1,48 @@
 import discord
+from discord.ext import commands
 from config import BOT_TOKEN
-from moderation import handle_ban_command, handle_kick_command, handle_timeout_command
+from moderation import setup_moderation_commands
 
 intents = discord.Intents.default()
-intents.message_content = True  # Needed to read message content
+intents.message_content = True  # Still needed for evidence handling
 
-client = discord.Client(intents=intents)
+# Use commands.Bot instead of discord.Client for slash command support
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-@client.event
+@bot.event
 async def on_ready():
-    print(f'Logged in as {client.user}')
+    print(f'Logged in as {bot.user}')
+    # Sync slash commands when bot starts up
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash commands")
+    except Exception as e:
+        print(f"Failed to sync slash commands: {e}")
 
-@client.event
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
+    if message.author == bot.user:
         return  # Ignore messages from the bot itself
     
-    # Command routing
+    # Keep existing message commands for backward compatibility
     command = message.content.lower()
     
     if command.startswith("!ban"):
-        await handle_ban_command(client, message)
+        from moderation import handle_ban_command
+        await handle_ban_command(bot, message)
     elif command.startswith("!kick"):
-        await handle_kick_command(client, message)
+        from moderation import handle_kick_command
+        await handle_kick_command(bot, message)
     elif command.startswith("!timeout"):
-        await handle_timeout_command(client, message)
+        from moderation import handle_timeout_command
+        await handle_timeout_command(bot, message)
+
+# Setup slash commands
+async def main():
+    async with bot:
+        await setup_moderation_commands(bot)
+        await bot.start(BOT_TOKEN)
 
 if __name__ == "__main__":
-    client.run(BOT_TOKEN)
+    import asyncio
+    asyncio.run(main())

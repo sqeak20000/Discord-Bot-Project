@@ -1,11 +1,209 @@
 import discord
 import asyncio
+from discord import app_commands
 from config import ALLOWED_ROLES
 from utils import (
     has_permission, has_evidence, log_action, notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
-    wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command
+    wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command, safe_send_message
 )
 
+async def setup_moderation_commands(bot):
+    """Setup slash commands for moderation"""
+    
+    @bot.tree.command(name="ban", description="Ban a user from the server")
+    @app_commands.describe(
+        user="The user to ban",
+        reason="Reason for the ban",
+        delete_messages="Whether to delete the user's messages from the last 7 days",
+        evidence="Evidence for the ban (image or link)"
+    )
+    async def slash_ban(
+        interaction: discord.Interaction, 
+        user: discord.Member, 
+        reason: str,
+        delete_messages: bool = False,
+        evidence: discord.Attachment = None
+    ):
+        """Slash command for banning users"""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Check permissions
+        if not has_permission(interaction.user, ALLOWED_ROLES):
+            await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
+            return
+        
+        # Handle evidence
+        evidence_content = None
+        if evidence:
+            evidence_content = evidence.url
+        
+        # Create a mock message object for evidence handling
+        if evidence_content:
+            evidence_msg = type('MockMessage', (), {
+                'attachments': [evidence] if evidence else [],
+                'content': f"/ban {user.mention} {reason}",
+                'author': interaction.user,
+                'channel': interaction.channel
+            })()
+        else:
+            await interaction.followup.send("❌ Please provide evidence (image or attachment) for the ban.", ephemeral=True)
+            return
+        
+        try:
+            # Log the action
+            await log_action(bot, evidence_msg, "Banned", interaction.user, reason)
+            
+            # Send DM notification to user before banning
+            dm_sent = await notify_user_dm(
+                user, 
+                "Banned", 
+                interaction.guild.name, 
+                interaction.user, 
+                reason=reason
+            )
+            
+            # Perform the ban
+            delete_message_days = 7 if delete_messages else 0
+            await interaction.guild.ban(
+                user, 
+                reason=f"Banned by {interaction.user}: {reason}",
+                delete_message_days=delete_message_days
+            )
+            
+            dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
+            delete_status = f" Messages from last 7 days deleted." if delete_messages else ""
+            await interaction.followup.send(f"✅ {user.mention} has been banned!{dm_status}{delete_status}")
+            
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don't have permission to ban this user.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.followup.send("❌ Failed to ban the user.", ephemeral=True)
+    
+    @bot.tree.command(name="kick", description="Kick a user from the server")
+    @app_commands.describe(
+        user="The user to kick",
+        reason="Reason for the kick",
+        evidence="Evidence for the kick (image or link)"
+    )
+    async def slash_kick(
+        interaction: discord.Interaction, 
+        user: discord.Member, 
+        reason: str,
+        evidence: discord.Attachment = None
+    ):
+        """Slash command for kicking users"""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Check permissions
+        if not has_permission(interaction.user, ALLOWED_ROLES):
+            await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
+            return
+        
+        # Handle evidence
+        if not evidence:
+            await interaction.followup.send("❌ Please provide evidence (image or attachment) for the kick.", ephemeral=True)
+            return
+        
+        # Create a mock message object for evidence handling
+        evidence_msg = type('MockMessage', (), {
+            'attachments': [evidence],
+            'content': f"/kick {user.mention} {reason}",
+            'author': interaction.user,
+            'channel': interaction.channel
+        })()
+        
+        try:
+            # Log the action
+            await log_action(bot, evidence_msg, "Kicked", interaction.user, reason)
+            
+            # Send DM notification to user before kicking
+            dm_sent = await notify_user_dm(
+                user, 
+                "Kicked", 
+                interaction.guild.name, 
+                interaction.user, 
+                reason=reason
+            )
+            
+            # Perform the kick
+            await interaction.guild.kick(user, reason=f"Kicked by {interaction.user}: {reason}")
+            
+            dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
+            await interaction.followup.send(f"✅ {user.mention} has been kicked!{dm_status}")
+            
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don't have permission to kick this user.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.followup.send("❌ Failed to kick the user.", ephemeral=True)
+    
+    @bot.tree.command(name="timeout", description="Timeout a user")
+    @app_commands.describe(
+        user="The user to timeout",
+        duration="Duration (e.g., 10m, 1h, 2d, 1w)",
+        reason="Reason for the timeout",
+        evidence="Evidence for the timeout (image or link)"
+    )
+    async def slash_timeout(
+        interaction: discord.Interaction, 
+        user: discord.Member, 
+        duration: str,
+        reason: str,
+        evidence: discord.Attachment = None
+    ):
+        """Slash command for timing out users"""
+        await interaction.response.defer(ephemeral=True)
+        
+        # Check permissions
+        if not has_permission(interaction.user, ALLOWED_ROLES):
+            await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
+            return
+        
+        # Parse duration
+        timeout_duration = parse_duration(duration)
+        if timeout_duration == "invalid" or timeout_duration is None:
+            await interaction.followup.send("❌ Invalid duration format. Use 10m, 1h, 2d, or 1w", ephemeral=True)
+            return
+        
+        # Handle evidence
+        if not evidence:
+            await interaction.followup.send("❌ Please provide evidence (image or attachment) for the timeout.", ephemeral=True)
+            return
+        
+        # Create a mock message object for evidence handling
+        evidence_msg = type('MockMessage', (), {
+            'attachments': [evidence],
+            'content': f"/timeout {user.mention} {duration} {reason}",
+            'author': interaction.user,
+            'channel': interaction.channel
+        })()
+        
+        try:
+            # Log the action
+            await log_action(bot, evidence_msg, "Timed out", interaction.user, reason)
+            
+            # Send DM notification to user before timeout
+            dm_sent = await notify_user_dm(
+                user, 
+                "Timed out", 
+                interaction.guild.name, 
+                interaction.user, 
+                reason=reason,
+                duration=duration
+            )
+            
+            # Perform the timeout
+            await user.timeout(timeout_duration, reason=f"Timed out by {interaction.user}: {reason}")
+            
+            dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
+            await interaction.followup.send(f"✅ {user.mention} has been timed out for {duration}!{dm_status}")
+            
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don't have permission to timeout this user.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.followup.send("❌ Failed to timeout the user.", ephemeral=True)
+
+
+# Keep existing message-based commands for backward compatibility
 async def handle_ban_command(client, message):
     """Handle the !ban command
     
