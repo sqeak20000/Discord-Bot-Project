@@ -13,9 +13,10 @@ from utils import (
 async def collect_additional_evidence(bot, interaction, initial_evidence):
     """Helper function to collect additional evidence after a slash command"""
     evidence_attachments = [initial_evidence] if initial_evidence else []
+    evidence_messages_to_delete = []  # Track messages with evidence to delete later
     
     if not initial_evidence:
-        return evidence_attachments
+        return evidence_attachments, evidence_messages_to_delete
     
     # Ask if they want to add more evidence
     await interaction.followup.send(
@@ -42,10 +43,11 @@ async def collect_additional_evidence(bot, interaction, initial_evidence):
             additional_msg = await bot.wait_for('message', check=check_additional_evidence, timeout=5.0)
             
             if additional_msg.content.lower() in ['done', 'proceed', 'continue']:
-                await additional_msg.delete()  # Clean up the command message
+                await additional_msg.delete()  # Clean up the command message immediately
                 break
             elif additional_msg.attachments:
                 additional_evidence.extend(additional_msg.attachments)
+                evidence_messages_to_delete.append(additional_msg)  # Mark for deletion later
                 await additional_msg.add_reaction('✅')  # Confirm we got the evidence
                 await interaction.followup.send(
                     f"✅ Added {len(additional_msg.attachments)} more evidence file(s). "
@@ -66,7 +68,26 @@ async def collect_additional_evidence(bot, interaction, initial_evidence):
             ephemeral=True
         )
     
-    return evidence_attachments
+    return evidence_attachments, evidence_messages_to_delete
+
+async def cleanup_evidence_messages(evidence_messages_to_delete, delay=3):
+    """Clean up evidence messages after successful logging"""
+    if not evidence_messages_to_delete:
+        return
+    
+    print(f"🧹 Cleaning up {len(evidence_messages_to_delete)} evidence messages in {delay} seconds...")
+    await asyncio.sleep(delay)  # Short delay to ensure logging is complete
+    
+    for msg in evidence_messages_to_delete:
+        try:
+            await msg.delete()
+            print(f"🗑️ Deleted evidence message: {msg.id}")
+        except discord.NotFound:
+            print(f"⚠️ Evidence message {msg.id} was already deleted")
+        except discord.Forbidden:
+            print(f"❌ No permission to delete evidence message: {msg.id}")
+        except Exception as e:
+            print(f"❌ Error deleting evidence message {msg.id}: {e}")
 
 async def setup_moderation_commands(bot):
     """Setup slash commands for moderation"""
@@ -94,7 +115,7 @@ async def setup_moderation_commands(bot):
             return
         
         # Handle evidence - collect initial and additional evidence
-        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
+        evidence_attachments, evidence_messages_to_delete = await collect_additional_evidence(bot, interaction, evidence)
         
         if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the ban.", ephemeral=True)
@@ -135,6 +156,9 @@ async def setup_moderation_commands(bot):
             delete_status = f" Messages from last 7 days deleted." if delete_messages else ""
             await interaction.followup.send(f"✅ {user.mention} has been banned!{dm_status}{delete_status}")
             
+            # Clean up evidence messages after successful ban and logging
+            await cleanup_evidence_messages(evidence_messages_to_delete)
+            
         except discord.Forbidden:
             await interaction.followup.send("❌ I don't have permission to ban this user.", ephemeral=True)
         except discord.HTTPException as e:
@@ -164,7 +188,7 @@ async def setup_moderation_commands(bot):
             return
         
         # Handle evidence - collect initial and additional evidence
-        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
+        evidence_attachments, evidence_messages_to_delete = await collect_additional_evidence(bot, interaction, evidence)
         
         if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the kick.", ephemeral=True)
@@ -198,6 +222,9 @@ async def setup_moderation_commands(bot):
             
             dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
             await interaction.followup.send(f"✅ {user.mention} has been kicked!{dm_status}")
+            
+            # Clean up evidence messages after successful kick and logging
+            await cleanup_evidence_messages(evidence_messages_to_delete)
             
         except discord.Forbidden:
             await interaction.followup.send("❌ I don't have permission to kick this user.", ephemeral=True)
@@ -233,7 +260,7 @@ async def setup_moderation_commands(bot):
             return
         
         # Handle evidence - collect initial and additional evidence
-        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
+        evidence_attachments, evidence_messages_to_delete = await collect_additional_evidence(bot, interaction, evidence)
         
         if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the timeout.", ephemeral=True)
@@ -268,6 +295,9 @@ async def setup_moderation_commands(bot):
             
             dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
             await interaction.followup.send(f"✅ {user.mention} has been timed out for {duration}!{dm_status}")
+            
+            # Clean up evidence messages after successful timeout and logging
+            await cleanup_evidence_messages(evidence_messages_to_delete)
             
         except discord.Forbidden:
             await interaction.followup.send("❌ I don't have permission to timeout this user.", ephemeral=True)
@@ -365,9 +395,9 @@ async def handle_ban_command(client, message):
         delete_status = f" Messages from last 7 days deleted." if delete_messages else ""
         await message.channel.send(f"✅ {user_to_ban.mention} has been banned!{dm_status}{delete_status}")
         
-        # Delete the evidence message after delay (only if it's not the original command message)
-        if evidence_message != message:
-            await delete_message_after_delay(evidence_message)
+        # Clean up evidence message after successful ban and logging (but not the original command message)
+        if evidence_message != message and evidence_message.attachments:
+            await cleanup_evidence_messages([evidence_message], delay=5)
             
     except discord.Forbidden:
         await message.channel.send("❌ I don't have permission to ban this user.")
@@ -455,9 +485,9 @@ async def handle_kick_command(client, message):
         dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
         await message.channel.send(f"✅ {user_to_kick.mention} has been kicked!{dm_status}")
         
-        # Delete the evidence message after delay (only if it's not the original command message)
-        if evidence_message != message:
-            await delete_message_after_delay(evidence_message)
+        # Clean up evidence message after successful kick and logging (but not the original command message)
+        if evidence_message != message and evidence_message.attachments:
+            await cleanup_evidence_messages([evidence_message], delay=5)
             
     except discord.Forbidden:
         await message.channel.send("❌ I don't have permission to kick this user.")
@@ -563,9 +593,9 @@ async def handle_timeout_command(client, message):
         dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
         await message.channel.send(f"✅ {user_to_timeout.mention} has been timed out for {duration_text}{dm_status}")
         
-        # Delete the evidence message after delay (longer for timeout, only if it's not the original command message)
-        if evidence_message != message:
-            await delete_message_after_delay(evidence_message, delay=10)
+        # Clean up evidence message after successful timeout and logging (but not the original command message)
+        if evidence_message != message and evidence_message.attachments:
+            await cleanup_evidence_messages([evidence_message], delay=5)
             
     except discord.Forbidden:
         await message.channel.send("❌ I don't have permission to timeout this user.")
