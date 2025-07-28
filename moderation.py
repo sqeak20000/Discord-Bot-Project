@@ -2,10 +2,8 @@ import discord
 import asyncio
 from discord import app_commands
 from config import ALLOWED_ROLES
-from utils_simple import (
-    has_permission, has_evidence, safe_send_message, log_action
-)
 from utils import (
+    has_permission, has_evidence, safe_send_message, log_action,
     notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
     wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command
 )

@@ -32,182 +32,125 @@ def has_evidence(message):
     return has_link or has_attachment
 
 async def log_action(client, message, action_type, moderator, reason=None, duration=None):
-    """Log moderation action to the log channel with embedded format"""
-    try:
-        print(f"🔍 Starting log_action: {action_type} by {moderator.display_name}")
-        
-        log_channel = client.get_channel(LOG_CHANNEL_ID)
-        if not log_channel:
-            print(f"❌ Error: Log channel {LOG_CHANNEL_ID} not found!")
-            print(f"📋 Available channels: {[c.name for c in client.get_all_channels() if hasattr(c, 'name')][:10]}")
-            return
-        
-        print(f"✅ Found log channel: #{log_channel.name}")
-        
-        # Determine embed color based on action type
-        color_map = {
-            "Banned": discord.Color.red(),
-            "Kicked": discord.Color.orange(), 
-            "Timed out": discord.Color.yellow(),
-            "Warned": discord.Color.blue()
-        }
-        embed_color = color_map.get(action_type, discord.Color.gray())
-        
-        # Create the main embed
-        embed = discord.Embed(
-            title=f"🔨 User {action_type}",
-            color=embed_color,
-            timestamp=discord.utils.utcnow()
+    """Log moderation action to the log channel with embeds and pings"""
+    print(f"🔍 LOGGING: {action_type} by {moderator.display_name}")
+    
+    # Get log channel
+    log_channel = client.get_channel(LOG_CHANNEL_ID)
+    if not log_channel:
+        print(f"❌ CRITICAL: Log channel {LOG_CHANNEL_ID} not found!")
+        return
+    
+    print(f"✅ Found log channel: #{log_channel.name}")
+    
+    # Get target user
+    target_user = None
+    target_mention = ""
+    if hasattr(message, 'mentions') and message.mentions:
+        target_user = message.mentions[0]
+        target_mention = target_user.mention
+    
+    # Create embed
+    embed = discord.Embed(
+        title=f"🔨 Moderation Action: {action_type.title()}",
+        color=discord.Color.red() if action_type.lower() == "ban" else 
+              discord.Color.orange() if action_type.lower() == "timeout" else 
+              discord.Color.yellow(),
+        timestamp=discord.utils.utcnow()
+    )
+    
+    # Add fields
+    if target_user:
+        embed.add_field(
+            name="👤 Target User", 
+            value=f"{target_user.mention}\n({target_user.display_name})", 
+            inline=True
         )
+    
+    embed.add_field(
+        name="�️ Moderator", 
+        value=f"{moderator.mention}\n({moderator.display_name})", 
+        inline=True
+    )
+    
+    if reason:
+        embed.add_field(
+            name="📝 Reason", 
+            value=reason, 
+            inline=False
+        )
+    
+    if duration:
+        embed.add_field(
+            name="⏰ Duration", 
+            value=duration, 
+            inline=True
+        )
+    
+    # Add evidence if available
+    evidence_urls = []
+    if hasattr(message, 'attachments') and message.attachments:
+        evidence_urls.extend([att.url for att in message.attachments])
+    
+    # Check for links in message content
+    if hasattr(message, 'content') and message.content:
+        words = message.content.split()
+        for word in words:
+            if word.startswith(('http://', 'https://')):
+                evidence_urls.append(word)
+    
+    if evidence_urls:
+        evidence_text = "\n".join([f"• [Evidence {i+1}]({url})" for i, url in enumerate(evidence_urls)])
+        embed.add_field(
+            name="� Evidence", 
+            value=evidence_text, 
+            inline=False
+        )
+    
+    embed.set_footer(text=f"Action ID: {discord.utils.utcnow().strftime('%Y%m%d_%H%M%S')}")
+    
+    try:
+        # Send embed
+        await log_channel.send(embed=embed)
+        print(f"✅ Sent embedded log message")
         
-        print(f"📝 Created embed with title: 🔨 User {action_type}")
-        
-        # Extract user mention from the message content or mentions
-        target_user = None
-        try:
-            if hasattr(message, 'mentions') and message.mentions:
-                target_user = message.mentions[0]
-                embed.add_field(
-                    name="👤 Target User", 
-                    value=f"{target_user.mention}\n`{target_user.display_name}` (ID: {target_user.id})", 
-                    inline=True
-                )
-                print(f"👤 Target user: {target_user.display_name}")
-            else:
-                # Fallback if no mentions found
-                embed.add_field(name="👤 Target User", value="Unknown", inline=True)
-                print("⚠️  No target user found in mentions")
-        except Exception as e:
-            print(f"❌ Error processing target user: {e}")
-            embed.add_field(name="👤 Target User", value="Error retrieving user", inline=True)
-        
-        # Add moderator info
-        try:
-            embed.add_field(
-                name="👮 Moderator", 
-                value=f"{moderator.mention}\n`{moderator.display_name}`", 
-                inline=True
-            )
-            print(f"👮 Moderator: {moderator.display_name}")
-        except Exception as e:
-            print(f"❌ Error processing moderator: {e}")
-            embed.add_field(name="👮 Moderator", value="Unknown moderator", inline=True)
-        
-        # Add duration if applicable (for timeouts)
-        if duration:
-            embed.add_field(name="⏰ Duration", value=str(duration), inline=True)
-            print(f"⏰ Duration: {duration}")
-        
-        # Add reason
-        if reason:
-            # Truncate reason if too long
-            reason_text = str(reason)[:1000] if len(str(reason)) > 1000 else str(reason)
-            embed.add_field(name="📝 Reason", value=reason_text, inline=False)
-            print(f"📝 Reason: {reason_text}")
-        else:
-            embed.add_field(name="📝 Reason", value="No specific reason provided", inline=False)
-            print("📝 No reason provided")
-        
-        # Add channel info safely
-        try:
-            if hasattr(message, 'channel') and message.channel:
-                embed.add_field(
-                    name="📍 Channel", 
-                    value=f"{message.channel.mention} (`#{message.channel.name}`)", 
-                    inline=True
-                )
-                print(f"📍 Channel: #{message.channel.name}")
-        except Exception as e:
-            print(f"❌ Error processing channel info: {e}")
-            embed.add_field(name="📍 Channel", value="Unknown channel", inline=True)
-        
-        # Add original message link if available
-        try:
-            if hasattr(message, 'jump_url'):
-                embed.add_field(
-                    name="🔗 Original Message", 
-                    value=f"[Jump to message]({message.jump_url})", 
-                    inline=True
-                )
-                print("🔗 Added jump link")
-        except Exception as e:
-            print(f"❌ Error processing message link: {e}")
-        
-        # Set footer with moderator info
-        try:
-            embed.set_footer(
-                text=f"Action performed by {moderator.display_name}",
-                icon_url=moderator.display_avatar.url if moderator.display_avatar else None
-            )
-        except Exception as e:
-            print(f"❌ Error setting footer: {e}")
-            embed.set_footer(text="Moderation action performed")
-        
-        # Send the main embed
-        print("📤 Attempting to send embed to log channel...")
-        try:
-            sent_message = await log_channel.send(embed=embed)
-            print(f"✅ Successfully sent log embed! Message ID: {sent_message.id}")
-        except discord.Forbidden:
-            print("❌ Permission denied: Bot cannot send messages to log channel")
-            return
-        except discord.HTTPException as e:
-            print(f"❌ HTTP Error sending embed: {e}")
-            # Fallback to simple text message
-            try:
-                fallback_message = f"🔨 {action_type}: {target_user.mention if target_user else 'Unknown'} by {moderator.mention} - {reason or 'No reason'}"
-                sent_fallback = await log_channel.send(fallback_message)
-                print(f"✅ Sent fallback message instead: {sent_fallback.id}")
-            except Exception as fallback_error:
-                print(f"❌ Error sending fallback message: {fallback_error}")
-                return
-        except Exception as e:
-            print(f"❌ Unexpected error sending embed: {e}")
-            return
-        
-        # Send proof attachments separately with rate limiting (download and re-upload)
-        try:
-            if hasattr(message, 'attachments') and message.attachments:
-                print(f"📎 Processing {len(message.attachments)} attachments...")
-                for i, attachment in enumerate(message.attachments):
-                    if i > 0:  # Add delay between attachments
-                        await asyncio.sleep(ATTACHMENT_SEND_DELAY)
+        # Send evidence attachments if they exist (download and re-upload)
+        if hasattr(message, 'attachments') and message.attachments:
+            await asyncio.sleep(0.5)  # Small delay to avoid rate limits
+            for i, attachment in enumerate(message.attachments):
+                try:
+                    # Download the attachment data
+                    print(f"⬇️ Downloading attachment: {attachment.filename}")
+                    attachment_data = await attachment.read()
                     
+                    # Create a new Discord file object
+                    discord_file = discord.File(
+                        fp=io.BytesIO(attachment_data),
+                        filename=f"evidence_{i+1}_{attachment.filename}"
+                    )
+                    
+                    # Upload the file to the log channel
+                    await log_channel.send(
+                        content=f"📎 **Evidence {i+1}:** {attachment.filename}",
+                        file=discord_file
+                    )
+                    print(f"✅ Re-uploaded attachment: {attachment.filename}")
+                    
+                except Exception as e:
+                    print(f"❌ Error re-uploading attachment {attachment.filename}: {e}")
+                    # Fallback to link if download/upload fails
                     try:
-                        # Download the attachment data
-                        print(f"⬇️ Downloading attachment: {attachment.filename}")
-                        attachment_data = await attachment.read()
-                        
-                        # Create a new Discord file object
-                        discord_file = discord.File(
-                            fp=io.BytesIO(attachment_data),
-                            filename=f"evidence_{i+1}_{attachment.filename}"
+                        await log_channel.send(
+                            content=f"📎 **Evidence {i+1} (fallback link):** {attachment.filename}\n{attachment.url}"
                         )
-                        
-                        # Upload the file to the log channel
-                        att_message = await log_channel.send(
-                            content=f"📎 **Evidence {i+1}:** {attachment.filename}",
-                            file=discord_file
-                        )
-                        print(f"✅ Re-uploaded attachment {i+1}: {att_message.id}")
-                        
-                    except Exception as attachment_error:
-                        print(f"❌ Error re-uploading attachment {i}: {attachment_error}")
-                        # Fallback to link if download/upload fails
-                        try:
-                            fallback_message = await log_channel.send(f"📎 Evidence {i+1} (link): {attachment.url}")
-                            print(f"⚠️ Sent fallback link for attachment {i+1}: {fallback_message.id}")
-                        except Exception as fallback_error:
-                            print(f"❌ Error sending fallback link: {fallback_error}")
-            else:
-                print("ℹ️  No attachments to process")
-        except Exception as e:
-            print(f"❌ Error processing attachments: {e}")
-            
-        print("✅ log_action completed successfully")
-                        
+                        print(f"⚠️ Sent fallback link for: {attachment.filename}")
+                    except Exception as fallback_error:
+                        print(f"❌ Error sending fallback link: {fallback_error}")
+        
+    except discord.Forbidden:
+        print(f"❌ PERMISSION ERROR: Cannot send to log channel")
     except Exception as e:
-        print(f"💥 Critical error in log_action: {e}")
+        print(f"❌ LOGGING ERROR: {e}")
         import traceback
         traceback.print_exc()
 
