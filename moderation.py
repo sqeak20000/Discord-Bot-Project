@@ -10,6 +10,64 @@ from utils import (
     wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command
 )
 
+async def collect_additional_evidence(bot, interaction, initial_evidence):
+    """Helper function to collect additional evidence after a slash command"""
+    evidence_attachments = [initial_evidence] if initial_evidence else []
+    
+    if not initial_evidence:
+        return evidence_attachments
+    
+    # Ask if they want to add more evidence
+    await interaction.followup.send(
+        f"📎 Evidence received: `{initial_evidence.filename}`\n\n"
+        "**Do you want to add more evidence?**\n"
+        "• Send additional images/files in this channel within the next 30 seconds\n"
+        "• Type `done` when finished\n"
+        "• Type `proceed` to continue with just the current evidence",
+        ephemeral=True
+    )
+    
+    # Wait for additional evidence
+    additional_evidence = []
+    timeout_time = 30  # 30 seconds to add more evidence
+    start_time = asyncio.get_event_loop().time()
+    
+    def check_additional_evidence(msg):
+        return (msg.author == interaction.user and 
+                msg.channel == interaction.channel and
+                msg.created_at.timestamp() > start_time)
+    
+    while (asyncio.get_event_loop().time() - start_time) < timeout_time:
+        try:
+            additional_msg = await bot.wait_for('message', check=check_additional_evidence, timeout=5.0)
+            
+            if additional_msg.content.lower() in ['done', 'proceed', 'continue']:
+                await additional_msg.delete()  # Clean up the command message
+                break
+            elif additional_msg.attachments:
+                additional_evidence.extend(additional_msg.attachments)
+                await additional_msg.add_reaction('✅')  # Confirm we got the evidence
+                await interaction.followup.send(
+                    f"✅ Added {len(additional_msg.attachments)} more evidence file(s). "
+                    f"Total: {len(evidence_attachments) + len(additional_evidence)} files.\n"
+                    "Send more or type `done` to proceed.",
+                    ephemeral=True
+                )
+            
+        except asyncio.TimeoutError:
+            continue  # Keep checking until the total timeout
+    
+    # Combine all evidence
+    evidence_attachments.extend(additional_evidence)
+    
+    if additional_evidence:
+        await interaction.followup.send(
+            f"📎 **Final evidence count:** {len(evidence_attachments)} files collected.",
+            ephemeral=True
+        )
+    
+    return evidence_attachments
+
 async def setup_moderation_commands(bot):
     """Setup slash commands for moderation"""
     
@@ -35,24 +93,22 @@ async def setup_moderation_commands(bot):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
         
-        # Handle evidence
-        evidence_content = None
-        if evidence:
-            evidence_content = evidence.url
+        # Handle evidence - collect initial and additional evidence
+        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
         
-        # Create a mock message object for evidence handling
-        if evidence_content:
-            evidence_msg = type('MockMessage', (), {
-                'attachments': [evidence] if evidence else [],
-                'content': f"/ban {user.mention} {reason}",
-                'author': interaction.user,
-                'channel': interaction.channel,
-                'mentions': [user],  # Add the target user to mentions
-                'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
-            })()
-        else:
+        if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the ban.", ephemeral=True)
             return
+        
+        # Create a mock message object with all evidence
+        evidence_msg = type('MockMessage', (), {
+            'attachments': evidence_attachments,
+            'content': f"/ban {user.mention} {reason}",
+            'author': interaction.user,
+            'channel': interaction.channel,
+            'mentions': [user],  # Add the target user to mentions
+            'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
+        })()
         
         try:
             # Log the action (use the evidence message for logging)
@@ -107,14 +163,16 @@ async def setup_moderation_commands(bot):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
         
-        # Handle evidence
-        if not evidence:
+        # Handle evidence - collect initial and additional evidence
+        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
+        
+        if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the kick.", ephemeral=True)
             return
         
-        # Create a mock message object for evidence handling
+        # Create a mock message object with all evidence
         evidence_msg = type('MockMessage', (), {
-            'attachments': [evidence],
+            'attachments': evidence_attachments,
             'content': f"/kick {user.mention} {reason}",
             'author': interaction.user,
             'channel': interaction.channel,
@@ -174,14 +232,16 @@ async def setup_moderation_commands(bot):
             await interaction.followup.send("❌ Invalid duration format. Use 10m, 1h, 2d, or 1w", ephemeral=True)
             return
         
-        # Handle evidence
-        if not evidence:
+        # Handle evidence - collect initial and additional evidence
+        evidence_attachments = await collect_additional_evidence(bot, interaction, evidence)
+        
+        if not evidence_attachments:
             await interaction.followup.send("❌ Please provide evidence (image or attachment) for the timeout.", ephemeral=True)
             return
         
-        # Create a mock message object for evidence handling
+        # Create a mock message object with all evidence
         evidence_msg = type('MockMessage', (), {
-            'attachments': [evidence],
+            'attachments': evidence_attachments,
             'content': f"/timeout {user.mention} {duration} {reason}",
             'author': interaction.user,
             'channel': interaction.channel,
