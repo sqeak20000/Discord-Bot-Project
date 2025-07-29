@@ -69,6 +69,9 @@ async def on_message(message):
     elif command.startswith("!timeout"):
         from moderation import handle_timeout_command
         await handle_timeout_command(bot, message)
+    elif command.startswith("!ticketblacklist"):
+        from moderation import handle_ticketblacklist_command
+        await handle_ticketblacklist_command(bot, message)
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)

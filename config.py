@@ -6,6 +6,7 @@ load_dotenv()
 
 # Bot configuration
 ALLOWED_ROLES = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]
+TICKETBLACKLIST_ROLE_NAME = "ticket blacklist"  # Role name for ticket blacklist
 LOG_CHANNEL_ID = 1397806698596405268
 COMMAND_TIMEOUT = 30.0
 MESSAGE_DELETE_DELAY = 5
