@@ -132,8 +132,6 @@ async def on_message(message):
     elif command.startswith("!ticketblacklist"):
         from moderation import handle_ticketblacklist_command
         await handle_ticketblacklist_command(bot, message)
-    elif command.startswith("!synccommands"):
-        await handle_sync_commands(bot, message)
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
