@@ -7,8 +7,10 @@ from config import (
     GUILDED_SERVER_ID, 
     GUILDED_ANNOUNCEMENTS_CHANNEL_ID,
     DISCORD_UPDATES_CHANNEL_ID,
-    ENABLE_CROSS_POSTING
+    ENABLE_CROSS_POSTING,
+    ENABLE_ROBLOX_POSTING
 )
+from roblox_integration import roblox_poster, format_message_for_roblox
 
 # Setup logging for cross-posting
 logger = logging.getLogger('crosspost')
@@ -212,17 +214,49 @@ async def handle_discord_update_message(message):
             content += attachment_text
         
         # Cross-post to Guilded
-        success = await cross_poster.send_to_guilded(
+        guilded_success = await cross_poster.send_to_guilded(
             content=content,
             title=title  # Pass title separately for announcements
         )
         
-        if success:
-            # React to the original message to show it was cross-posted
+        # Cross-post to Roblox
+        roblox_success = False
+        if ENABLE_ROBLOX_POSTING:
             try:
-                await message.add_reaction("✅")
+                # Format message for Roblox
+                roblox_message = await format_message_for_roblox(content, title)
+                
+                # Try posting to group shout first (more visible)
+                roblox_success = await roblox_poster.post_to_group_shout(roblox_message)
+                
+                # If shout fails, try wall post as fallback
+                if not roblox_success:
+                    logger.info("Group shout failed, trying wall post...")
+                    roblox_success = await roblox_poster.post_to_group_wall(roblox_message)
+                    
+            except Exception as e:
+                logger.error(f"❌ Error posting to Roblox: {e}")
+        
+        # React to show cross-posting status
+        if guilded_success or roblox_success:
+            # Show success if at least one platform worked
+            try:
+                if guilded_success and roblox_success:
+                    await message.add_reaction("🎯")  # Both platforms
+                elif guilded_success:
+                    await message.add_reaction("🟢")  # Guilded only
+                elif roblox_success:
+                    await message.add_reaction("🔶")  # Roblox only
+                else:
+                    await message.add_reaction("✅")  # Default success
             except discord.Forbidden:
                 pass  # Bot doesn't have permission to react
+        else:
+            # Both failed
+            try:
+                await message.add_reaction("❌")
+            except discord.Forbidden:
+                pass
         
     except Exception as e:
         logger.error(f"❌ Error handling Discord update message: {e}")
@@ -245,8 +279,19 @@ async def setup_cross_posting():
         logger.warning(f"   • GUILDED_BOT_TOKEN: {'✅' if GUILDED_BOT_TOKEN else '❌'}")
         logger.warning(f"   • GUILDED_SERVER_ID: {'✅' if GUILDED_SERVER_ID else '❌'}")
         logger.warning(f"   • GUILDED_ANNOUNCEMENTS_CHANNEL_ID: {'✅' if GUILDED_ANNOUNCEMENTS_CHANNEL_ID else '❌'}")
+    
+    # Initialize Roblox posting
+    if ENABLE_ROBLOX_POSTING:
+        from roblox_integration import setup_roblox_posting
+        await setup_roblox_posting()
 
 async def cleanup_cross_posting():
     """Cleanup cross-posting resources"""
     await cross_poster.close_session()
+    
+    # Cleanup Roblox posting
+    if ENABLE_ROBLOX_POSTING:
+        from roblox_integration import cleanup_roblox_posting
+        await cleanup_roblox_posting()
+    
     logger.info("🔌 Cross-posting cleanup completed")

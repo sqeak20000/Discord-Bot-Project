@@ -152,6 +152,10 @@ async def on_message(message):
         await handle_test_crosspost(bot, message)
     elif command.startswith("!debugguilded"):
         await handle_debug_guilded(bot, message)
+    elif command.startswith("!testroblox"):
+        await handle_test_roblox(bot, message)
+    elif command.startswith("!debugroblox"):
+        await handle_debug_roblox(bot, message)
 
 async def handle_test_crosspost(bot, message):
     """Handle the !testcrosspost command to test cross-posting functionality"""
@@ -261,6 +265,107 @@ async def handle_debug_guilded(bot, message):
             else:
                 await message.channel.send(f"⚠️ **Server Membership Check Failed:** {response.status}")
                 
+    except Exception as e:
+        await message.channel.send(f"❌ **Debug Error:** {e}")
+
+async def handle_test_roblox(bot, message):
+    """Handle the !testroblox command to test Roblox posting functionality"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES, ENABLE_ROBLOX_POSTING
+    from roblox_integration import roblox_poster, format_message_for_roblox
+    
+    # Check permissions - only moderators can test Roblox posting
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to test Roblox posting.", delete_after=5)
+        return
+    
+    if not ENABLE_ROBLOX_POSTING:
+        await message.channel.send("❌ Roblox posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("🧪 **Testing Roblox posting...**")
+    
+    try:
+        # Format test message
+        test_content = f"🧪 **Roblox Posting Test**\n\nThis is a test message from Discord to verify the Roblox posting functionality is working correctly.\n\n*Sent by: {message.author.display_name}*"
+        roblox_message = await format_message_for_roblox(test_content, "Test Update")
+        
+        # Try group shout first
+        await message.channel.send("🔄 Trying group shout...")
+        shout_success = await roblox_poster.post_to_group_shout(roblox_message)
+        
+        if shout_success:
+            await message.channel.send("✅ **Group shout test successful!**")
+        else:
+            # Try wall post as fallback
+            await message.channel.send("🔄 Group shout failed, trying wall post...")
+            wall_success = await roblox_poster.post_to_group_wall(roblox_message)
+            
+            if wall_success:
+                await message.channel.send("✅ **Wall post test successful!**")
+            else:
+                await message.channel.send("❌ **Both group shout and wall post failed!** Check the bot logs for error details.")
+            
+    except Exception as e:
+        await message.channel.send(f"❌ **Error during Roblox test:** {e}")
+
+async def handle_debug_roblox(bot, message):
+    """Handle the !debugroblox command to debug Roblox API connection"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES, ROBLOX_GROUP_ID, ENABLE_ROBLOX_POSTING
+    from roblox_integration import roblox_poster
+    
+    # Check permissions - only moderators can debug
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to debug Roblox.", delete_after=5)
+        return
+    
+    if not ENABLE_ROBLOX_POSTING:
+        await message.channel.send("❌ Roblox posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("🔍 **Debugging Roblox API connection...**")
+    
+    try:
+        # Test authentication
+        await message.channel.send("🔐 Testing authentication...")
+        user_info = await roblox_poster.get_user_info()
+        
+        if user_info:
+            await message.channel.send(
+                f"✅ **Authentication Successful**\n"
+                f"• Username: {user_info.get('name', 'Unknown')}\n"
+                f"• User ID: {user_info.get('id', 'Unknown')}\n"
+                f"• Display Name: {user_info.get('displayName', 'Unknown')}"
+            )
+        else:
+            await message.channel.send("❌ **Authentication Failed** - Invalid cookie or expired session")
+            return
+        
+        # Test group access
+        await message.channel.send("👥 Testing group access...")
+        group_info = await roblox_poster.get_group_info()
+        
+        if group_info:
+            await message.channel.send(
+                f"✅ **Group Access Successful**\n"
+                f"• Group Name: {group_info.get('name', 'Unknown')}\n"
+                f"• Group ID: {group_info.get('id', 'Unknown')}\n"
+                f"• Description: {group_info.get('description', 'No description')[:100]}...\n"
+                f"• Member Count: {group_info.get('memberCount', 'Unknown')}"
+            )
+        else:
+            await message.channel.send(f"❌ **Group Access Failed** - Cannot access group {ROBLOX_GROUP_ID}")
+            return
+        
+        # Check CSRF token
+        if roblox_poster.csrf_token:
+            await message.channel.send("✅ **CSRF Token Obtained** - Ready for API calls")
+        else:
+            await message.channel.send("⚠️ **CSRF Token Missing** - May not be able to post")
+        
+        await message.channel.send("✅ **Roblox debug completed successfully!**")
+        
     except Exception as e:
         await message.channel.send(f"❌ **Debug Error:** {e}")
 

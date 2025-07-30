@@ -34,3 +34,13 @@ ENABLE_CROSS_POSTING = all([
     GUILDED_SERVER_ID,
     GUILDED_ANNOUNCEMENTS_CHANNEL_ID
 ])
+
+# Roblox integration configuration
+ROBLOX_COOKIE = os.getenv('ROBLOX_COOKIE')  # Roblox account cookie (.ROBLOSECURITY)
+ROBLOX_GROUP_ID = os.getenv('ROBLOX_GROUP_ID')  # Roblox group ID where bot has permission to post
+
+# Roblox feature toggle
+ENABLE_ROBLOX_POSTING = all([
+    ROBLOX_COOKIE,
+    ROBLOX_GROUP_ID
+])
