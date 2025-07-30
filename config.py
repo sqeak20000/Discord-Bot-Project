@@ -20,3 +20,17 @@ ATTACHMENT_SEND_DELAY = 1  # seconds between sending multiple attachments
 BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN environment variable is not set")
+
+# Cross-posting configuration
+DISCORD_UPDATES_CHANNEL_ID = int(os.getenv('DISCORD_UPDATES_CHANNEL_ID', 0))  # Discord channel to monitor
+GUILDED_BOT_TOKEN = os.getenv('GUILDED_BOT_TOKEN')  # Guilded bot token
+GUILDED_SERVER_ID = os.getenv('GUILDED_SERVER_ID')  # Guilded server ID
+GUILDED_ANNOUNCEMENTS_CHANNEL_ID = os.getenv('GUILDED_ANNOUNCEMENTS_CHANNEL_ID')  # Guilded channel ID
+
+# Cross-posting feature toggle
+ENABLE_CROSS_POSTING = all([
+    DISCORD_UPDATES_CHANNEL_ID,
+    GUILDED_BOT_TOKEN,
+    GUILDED_SERVER_ID,
+    GUILDED_ANNOUNCEMENTS_CHANNEL_ID
+])

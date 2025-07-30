@@ -1,8 +1,13 @@
 import discord
 import asyncio
+import logging
 from discord.ext import commands
-from config import BOT_TOKEN
+from config import BOT_TOKEN, ENABLE_CROSS_POSTING
 from moderation import setup_moderation_commands
+from crosspost import handle_discord_update_message, setup_cross_posting, cleanup_cross_posting
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 intents = discord.Intents.default()
 intents.message_content = True  # Still needed for evidence handling
@@ -13,6 +18,11 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    
+    # Setup cross-posting functionality
+    if ENABLE_CROSS_POSTING:
+        await setup_cross_posting()
+    
     # Setup and sync slash commands when bot starts up
     try:
         print("Setting up moderation commands...")
@@ -117,6 +127,10 @@ async def on_message(message):
     if message.author == bot.user:
         return  # Ignore messages from the bot itself
     
+    # Handle cross-posting for updates channel
+    if ENABLE_CROSS_POSTING:
+        await handle_discord_update_message(message)
+    
     # Keep existing message commands for backward compatibility
     command = message.content.lower()
     
@@ -132,6 +146,64 @@ async def on_message(message):
     elif command.startswith("!ticketblacklist"):
         from moderation import handle_ticketblacklist_command
         await handle_ticketblacklist_command(bot, message)
+    elif command.startswith("!synccommands"):
+        await handle_sync_commands(bot, message)
+    elif command.startswith("!testcrosspost"):
+        await handle_test_crosspost(bot, message)
+
+async def handle_test_crosspost(bot, message):
+    """Handle the !testcrosspost command to test cross-posting functionality"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES
+    from crosspost import cross_poster
+    
+    # Check permissions - only moderators can test cross-posting
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to test cross-posting.", delete_after=5)
+        return
+    
+    if not ENABLE_CROSS_POSTING:
+        await message.channel.send("❌ Cross-posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("🧪 **Testing cross-posting to Guilded...**")
+    
+    try:
+        # Send a test message
+        test_content = f"🧪 **Cross-posting Test**\n\nThis is a test message from Discord to verify the cross-posting functionality is working correctly.\n\n*Sent by: {message.author.display_name}*"
+        
+        success = await cross_poster.send_to_guilded(content=test_content)
+        
+        if success:
+            await message.channel.send(
+                "✅ **Cross-posting test successful!**\n"
+                "The test message has been sent to the Guilded announcements channel."
+            )
+        else:
+            await message.channel.send(
+                "❌ **Cross-posting test failed!**\n"
+                "Check the bot logs for error details."
+            )
+            
+    except Exception as e:
+        await message.channel.send(f"❌ **Error during cross-posting test:** {e}")
+
+@bot.event
+async def on_disconnect():
+    """Cleanup when bot disconnects"""
+    if ENABLE_CROSS_POSTING:
+        await cleanup_cross_posting()
 
 if __name__ == "__main__":
-    bot.run(BOT_TOKEN)
+    try:
+        bot.run(BOT_TOKEN)
+    except KeyboardInterrupt:
+        print("🔌 Bot shutting down...")
+    finally:
+        # Cleanup cross-posting resources
+        if ENABLE_CROSS_POSTING:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(cleanup_cross_posting())
+            else:
+                loop.run_until_complete(cleanup_cross_posting())
