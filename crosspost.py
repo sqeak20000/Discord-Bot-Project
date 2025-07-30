@@ -35,7 +35,7 @@ class GuildedCrossPoster:
             await self.session.close()
             self.session = None
     
-    async def send_to_guilded(self, content, embeds=None, attachments=None):
+    async def send_to_guilded(self, content, title=None, embeds=None, attachments=None):
         """Send a message to the Guilded announcements channel"""
         if not ENABLE_CROSS_POSTING:
             logger.warning("Cross-posting is disabled - missing configuration")
@@ -44,19 +44,39 @@ class GuildedCrossPoster:
         await self.init_session()
         
         try:
-            # Use the simplest possible payload format
-            payload = {
-                'content': content
-            }
+            # First, get channel info to determine the correct endpoint
+            channel_info_url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}"
             
-            # Use the basic messages endpoint
-            url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
+            async with self.session.get(channel_info_url, headers=self.guilded_headers) as response:
+                if response.status == 200:
+                    channel_data = await response.json()
+                    channel_type = channel_data.get('channel', {}).get('type', 'chat')
+                    logger.info(f"Channel type detected: {channel_type}")
+                else:
+                    logger.warning(f"Could not get channel info: {response.status}")
+                    channel_type = 'chat'  # Default assumption
             
-            logger.info(f"Attempting to send message to: {url}")
+            # Use different endpoint and payload based on channel type
+            if channel_type == 'announcements':
+                # For announcement channels, use the announcements endpoint
+                payload = {
+                    'title': title or 'Discord Update',
+                    'content': content
+                }
+                url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/announcements"
+                logger.info(f"Using announcements endpoint: {url}")
+            else:
+                # For regular chat channels, use messages endpoint
+                payload = {
+                    'content': content
+                }
+                url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
+                logger.info(f"Using messages endpoint: {url}")
+            
             logger.info(f"Payload: {payload}")
             logger.info(f"Headers: {dict(self.guilded_headers)}")
             
-            # Send message to Guilded
+            # Send to Guilded
             async with self.session.post(url, json=payload, headers=self.guilded_headers) as response:
                 response_text = await response.text()
                 logger.info(f"Response status: {response.status}")
@@ -67,39 +87,10 @@ class GuildedCrossPoster:
                     return True
                 else:
                     logger.error(f"❌ Failed to send to Guilded: {response.status} - {response_text}")
-                    
-                    # If it's a content type error, try with minimal content
-                    if response.status == 400 and "content type" in response_text.lower():
-                        logger.info("Trying with minimal text content...")
-                        return await self._retry_with_minimal_content(content)
-                    
                     return False
                     
         except Exception as e:
             logger.error(f"❌ Error sending to Guilded: {e}")
-            return False
-    
-    async def _retry_with_minimal_content(self, original_content):
-        """Retry with minimal content to test if it's a content formatting issue"""
-        try:
-            # Try with just simple text
-            simple_payload = {
-                'content': f"📢 Discord Update: {original_content[:100]}..."
-            }
-            
-            url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
-            
-            async with self.session.post(url, json=simple_payload, headers=self.guilded_headers) as response:
-                if response.status == 200 or response.status == 201:
-                    logger.info(f"✅ Successfully sent simplified message on retry")
-                    return True
-                else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Simplified retry also failed: {response.status} - {error_text}")
-                    return False
-                    
-        except Exception as e:
-            logger.error(f"❌ Error in simplified retry: {e}")
             return False
     
     async def convert_discord_embed_to_guilded(self, discord_embed):
@@ -183,16 +174,35 @@ async def handle_discord_update_message(message):
         # Prepare content
         content = message.content if message.content else ""
         
-        # Add author attribution
-        author_info = f"**📢 Update from Discord** (by {message.author.display_name})\n\n"
-        content = author_info + content
+        # For announcements, we want a good title and clean content
+        # Extract title from first line if it looks like a title
+        lines = content.split('\n') if content else []
         
-        # Convert embeds
-        guilded_embeds = []
-        if message.embeds:
-            for embed in message.embeds:
-                guilded_embed = await cross_poster.convert_discord_embed_to_guilded(embed)
-                guilded_embeds.append(guilded_embed)
+        if lines and len(lines) > 1:
+            first_line = lines[0].strip()
+            # If first line is short and looks like a title, use it
+            if len(first_line) < 100 and ('update' in first_line.lower() or 
+                                        first_line.startswith('**') or 
+                                        first_line.startswith('# ') or
+                                        first_line.endswith(':') or
+                                        '🎉' in first_line or '📢' in first_line):
+                title = first_line.replace('**', '').replace('# ', '').strip(' :')
+                content = '\n'.join(lines[1:]).strip()
+            else:
+                title = f"Discord Update from {message.author.display_name}"
+        else:
+            title = f"Discord Update from {message.author.display_name}"
+            # If content is short, we'll use it as-is
+        
+        # Clean up title
+        title = title[:100]  # Guilded title limit
+        if not title:
+            title = "Discord Update"
+        
+        # Add author attribution to content if not already there
+        if message.author.display_name.lower() not in content.lower():
+            attribution = f"*Posted by {message.author.display_name}*\n\n"
+            content = attribution + content
         
         # Handle attachments (convert to links)
         if message.attachments:
@@ -204,7 +214,7 @@ async def handle_discord_update_message(message):
         # Cross-post to Guilded
         success = await cross_poster.send_to_guilded(
             content=content,
-            embeds=guilded_embeds if guilded_embeds else None
+            title=title  # Pass title separately for announcements
         )
         
         if success:
