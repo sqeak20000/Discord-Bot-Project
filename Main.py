@@ -150,6 +150,8 @@ async def on_message(message):
         await handle_sync_commands(bot, message)
     elif command.startswith("!testcrosspost"):
         await handle_test_crosspost(bot, message)
+    elif command.startswith("!debugguilded"):
+        await handle_debug_guilded(bot, message)
 
 async def handle_test_crosspost(bot, message):
     """Handle the !testcrosspost command to test cross-posting functionality"""
@@ -187,6 +189,80 @@ async def handle_test_crosspost(bot, message):
             
     except Exception as e:
         await message.channel.send(f"❌ **Error during cross-posting test:** {e}")
+
+async def handle_debug_guilded(bot, message):
+    """Handle the !debugguilded command to debug Guilded API connection"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES, GUILDED_SERVER_ID, GUILDED_ANNOUNCEMENTS_CHANNEL_ID
+    from crosspost import cross_poster
+    import aiohttp
+    
+    # Check permissions - only moderators can debug
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to debug Guilded.", delete_after=5)
+        return
+    
+    if not ENABLE_CROSS_POSTING:
+        await message.channel.send("❌ Cross-posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("🔍 **Debugging Guilded API connection...**")
+    
+    try:
+        await cross_poster.init_session()
+        
+        # Test basic API connectivity
+        url = f"{cross_poster.guilded_base_url}/users/@me"
+        
+        async with cross_poster.session.get(url, headers=cross_poster.guilded_headers) as response:
+            if response.status == 200:
+                bot_info = await response.json()
+                bot_name = bot_info.get('user', {}).get('name', 'Unknown')
+                await message.channel.send(f"✅ **Bot Authentication Successful**\nBot Name: {bot_name}")
+            else:
+                error_text = await response.text()
+                await message.channel.send(f"❌ **Bot Authentication Failed**\nStatus: {response.status}\nError: {error_text}")
+                return
+        
+        # Test channel info
+        channel_url = f"{cross_poster.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}"
+        
+        async with cross_poster.session.get(channel_url, headers=cross_poster.guilded_headers) as response:
+            if response.status == 200:
+                channel_info = await response.json()
+                channel_data = channel_info.get('channel', {})
+                channel_name = channel_data.get('name', 'Unknown')
+                channel_type = channel_data.get('type', 'Unknown')
+                server_id = channel_data.get('serverId', 'Unknown')
+                
+                await message.channel.send(
+                    f"✅ **Channel Info Retrieved**\n"
+                    f"Channel Name: {channel_name}\n"
+                    f"Channel Type: {channel_type}\n"
+                    f"Server ID: {server_id}\n"
+                    f"Expected Server ID: {GUILDED_SERVER_ID}"
+                )
+                
+                # Verify server match
+                if server_id != GUILDED_SERVER_ID:
+                    await message.channel.send("⚠️ **Warning:** Channel's server ID doesn't match configured server ID!")
+                
+            else:
+                error_text = await response.text()
+                await message.channel.send(f"❌ **Channel Info Failed**\nStatus: {response.status}\nError: {error_text}")
+        
+        # Test server permissions
+        server_url = f"{cross_poster.guilded_base_url}/servers/{GUILDED_SERVER_ID}/members/@me"
+        
+        async with cross_poster.session.get(server_url, headers=cross_poster.guilded_headers) as response:
+            if response.status == 200:
+                member_info = await response.json()
+                await message.channel.send("✅ **Bot is a member of the server**")
+            else:
+                await message.channel.send(f"⚠️ **Server Membership Check Failed:** {response.status}")
+                
+    except Exception as e:
+        await message.channel.send(f"❌ **Debug Error:** {e}")
 
 @bot.event
 async def on_disconnect():

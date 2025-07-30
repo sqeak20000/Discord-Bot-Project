@@ -44,31 +44,62 @@ class GuildedCrossPoster:
         await self.init_session()
         
         try:
-            # Prepare the message payload
+            # Use the simplest possible payload format
             payload = {
-                'content': content,
-                'isPublic': True,  # Make announcement public
-                'isSilent': False  # Don't silence the notification
+                'content': content
             }
             
-            # Add embeds if provided
-            if embeds:
-                payload['embeds'] = embeds
-            
-            # Send message to Guilded
+            # Use the basic messages endpoint
             url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
             
+            logger.info(f"Attempting to send message to: {url}")
+            logger.info(f"Payload: {payload}")
+            logger.info(f"Headers: {dict(self.guilded_headers)}")
+            
+            # Send message to Guilded
             async with self.session.post(url, json=payload, headers=self.guilded_headers) as response:
+                response_text = await response.text()
+                logger.info(f"Response status: {response.status}")
+                logger.info(f"Response text: {response_text}")
+                
                 if response.status == 200 or response.status == 201:
                     logger.info(f"✅ Successfully cross-posted message to Guilded")
                     return True
                 else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Failed to send to Guilded: {response.status} - {error_text}")
+                    logger.error(f"❌ Failed to send to Guilded: {response.status} - {response_text}")
+                    
+                    # If it's a content type error, try with minimal content
+                    if response.status == 400 and "content type" in response_text.lower():
+                        logger.info("Trying with minimal text content...")
+                        return await self._retry_with_minimal_content(content)
+                    
                     return False
                     
         except Exception as e:
             logger.error(f"❌ Error sending to Guilded: {e}")
+            return False
+    
+    async def _retry_with_minimal_content(self, original_content):
+        """Retry with minimal content to test if it's a content formatting issue"""
+        try:
+            # Try with just simple text
+            simple_payload = {
+                'content': f"📢 Discord Update: {original_content[:100]}..."
+            }
+            
+            url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
+            
+            async with self.session.post(url, json=simple_payload, headers=self.guilded_headers) as response:
+                if response.status == 200 or response.status == 201:
+                    logger.info(f"✅ Successfully sent simplified message on retry")
+                    return True
+                else:
+                    error_text = await response.text()
+                    logger.error(f"❌ Simplified retry also failed: {response.status} - {error_text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Error in simplified retry: {e}")
             return False
     
     async def convert_discord_embed_to_guilded(self, discord_embed):
