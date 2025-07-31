@@ -44,3 +44,7 @@ ENABLE_ROBLOX_POSTING = all([
     ROBLOX_COOKIE,
     ROBLOX_GROUP_ID
 ])
+
+# Guilded announcement update strategy
+GUILDED_UPDATE_EXISTING = os.getenv('GUILDED_UPDATE_EXISTING', 'true').lower() == 'true'
+GUILDED_FALLBACK_TO_NEW = os.getenv('GUILDED_FALLBACK_TO_NEW', 'true').lower() == 'true'

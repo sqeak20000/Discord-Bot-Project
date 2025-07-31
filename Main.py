@@ -156,6 +156,10 @@ async def on_message(message):
         await handle_test_roblox(bot, message)
     elif command.startswith("!debugroblox"):
         await handle_debug_roblox(bot, message)
+    elif command.startswith("!testupdate"):
+        await handle_test_update(bot, message)
+    elif command.startswith("!listannouncements"):
+        await handle_list_announcements(bot, message)
 
 async def handle_test_crosspost(bot, message):
     """Handle the !testcrosspost command to test cross-posting functionality"""
@@ -368,6 +372,120 @@ async def handle_debug_roblox(bot, message):
         
     except Exception as e:
         await message.channel.send(f"❌ **Debug Error:** {e}")
+
+async def handle_test_update(bot, message):
+    """Handle the !testupdate command to test updating existing announcements"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES, ENABLE_CROSS_POSTING
+    from crosspost import cross_poster
+    
+    # Check permissions - only moderators can test updates
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to test announcement updates.", delete_after=5)
+        return
+    
+    if not ENABLE_CROSS_POSTING:
+        await message.channel.send("❌ Cross-posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("🧪 **Testing announcement update functionality...**")
+    
+    try:
+        # Get the latest announcement
+        latest = await cross_poster.get_latest_announcement()
+        
+        if not latest:
+            await message.channel.send("❌ **No existing announcements found to update.**\nCreate an announcement first, then try this command.")
+            return
+        
+        announcement_id = latest.get('id')
+        original_title = latest.get('title', 'No title')
+        
+        await message.channel.send(f"📢 **Found announcement to update:**\n• ID: `{announcement_id}`\n• Title: `{original_title}`")
+        
+        # Test updating it
+        test_content = f"🧪 **Update Test**\n\nThis announcement was updated by the Discord bot to test the update functionality.\n\n*Updated by: {message.author.display_name}*"
+        test_title = f"Test Update - {original_title}"
+        
+        success = await cross_poster.update_announcement(announcement_id, test_content, test_title)
+        
+        if success:
+            await message.channel.send(
+                "✅ **Announcement update successful!**\n"
+                "The existing announcement has been updated. This should help with Roblox syncing if the original was created by a developer account."
+            )
+        else:
+            await message.channel.send(
+                "❌ **Announcement update failed!**\n"
+                "Check the bot logs for error details."
+            )
+            
+    except Exception as e:
+        await message.channel.send(f"❌ **Error during update test:** {e}")
+
+async def handle_list_announcements(bot, message):
+    """Handle the !listannouncements command to show recent announcements"""
+    from utils import has_permission
+    from config import ALLOWED_ROLES, ENABLE_CROSS_POSTING, GUILDED_ANNOUNCEMENTS_CHANNEL_ID
+    from crosspost import cross_poster
+    
+    # Check permissions - only moderators can list announcements
+    if not has_permission(message.author, ALLOWED_ROLES):
+        await message.channel.send("❌ You don't have permission to list announcements.", delete_after=5)
+        return
+    
+    if not ENABLE_CROSS_POSTING:
+        await message.channel.send("❌ Cross-posting is disabled. Check your environment variables.", delete_after=10)
+        return
+    
+    await message.channel.send("📋 **Fetching announcements from Guilded...**")
+    
+    try:
+        # Get announcements list
+        await cross_poster.init_session()
+        url = f"{cross_poster.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/announcements"
+        
+        async with cross_poster.session.get(url, headers=cross_poster.guilded_headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                announcements = data.get('announcements', [])
+                
+                if not announcements:
+                    await message.channel.send("📭 **No announcements found in the channel.**")
+                    return
+                
+                # Show up to 5 most recent announcements
+                announcement_list = "📋 **Recent Announcements:**\n\n"
+                
+                for i, announcement in enumerate(announcements[:5], 1):
+                    title = announcement.get('title', 'No title')
+                    created_at = announcement.get('createdAt', 'Unknown time')
+                    created_by = announcement.get('createdBy', 'Unknown')
+                    ann_id = announcement.get('id', 'Unknown')
+                    
+                    # Format the date
+                    try:
+                        from datetime import datetime
+                        if created_at != 'Unknown time':
+                            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            formatted_date = dt.strftime('%Y-%m-%d %H:%M UTC')
+                        else:
+                            formatted_date = created_at
+                    except:
+                        formatted_date = created_at
+                    
+                    announcement_list += f"**{i}.** `{title}`\n"
+                    announcement_list += f"   • ID: `{ann_id}`\n"
+                    announcement_list += f"   • Created: {formatted_date}\n"
+                    announcement_list += f"   • Author: {created_by}\n\n"
+                
+                await message.channel.send(announcement_list)
+                
+            else:
+                await message.channel.send(f"❌ **Failed to fetch announcements:** {response.status}")
+                
+    except Exception as e:
+        await message.channel.send(f"❌ **Error fetching announcements:** {e}")
 
 @bot.event
 async def on_disconnect():

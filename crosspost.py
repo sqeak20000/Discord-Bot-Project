@@ -8,7 +8,9 @@ from config import (
     GUILDED_ANNOUNCEMENTS_CHANNEL_ID,
     DISCORD_UPDATES_CHANNEL_ID,
     ENABLE_CROSS_POSTING,
-    ENABLE_ROBLOX_POSTING
+    ENABLE_ROBLOX_POSTING,
+    GUILDED_UPDATE_EXISTING,
+    GUILDED_FALLBACK_TO_NEW
 )
 from roblox_integration import roblox_poster, format_message_for_roblox
 
@@ -37,13 +39,105 @@ class GuildedCrossPoster:
             await self.session.close()
             self.session = None
     
-    async def send_to_guilded(self, content, title=None, embeds=None, attachments=None):
+    async def get_latest_announcement(self):
+        """Get the latest announcement in the channel"""
+        if not ENABLE_CROSS_POSTING:
+            return None
+        
+        await self.init_session()
+        
+        try:
+            url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/announcements"
+            
+            async with self.session.get(url, headers=self.guilded_headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    announcements = data.get('announcements', [])
+                    if announcements:
+                        # Return the most recent announcement
+                        latest = announcements[0]
+                        logger.info(f"Found latest announcement: {latest.get('id')} - '{latest.get('title', 'No title')}'")
+                        return latest
+                    else:
+                        logger.warning("No announcements found in channel")
+                        return None
+                else:
+                    logger.error(f"Failed to get announcements: {response.status}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error getting latest announcement: {e}")
+            return None
+    
+    async def update_announcement(self, announcement_id, content, title=None):
+        """Update an existing announcement"""
+        if not ENABLE_CROSS_POSTING:
+            logger.warning("Cross-posting is disabled - missing configuration")
+            return False
+        
+        await self.init_session()
+        
+        try:
+            url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/announcements/{announcement_id}"
+            
+            payload = {
+                'title': title or 'Discord Update',
+                'content': content
+            }
+            
+            logger.info(f"Updating announcement {announcement_id}: {url}")
+            logger.info(f"Update payload: {payload}")
+            
+            async with self.session.put(url, json=payload, headers=self.guilded_headers) as response:
+                response_text = await response.text()
+                logger.info(f"Update response status: {response.status}")
+                logger.info(f"Update response text: {response_text}")
+                
+                if response.status == 200:
+                    logger.info(f"✅ Successfully updated announcement {announcement_id}")
+                    return True
+                else:
+                    logger.error(f"❌ Failed to update announcement: {response.status} - {response_text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Error updating announcement: {e}")
+            return False
+
+    async def send_to_guilded(self, content, title=None, embeds=None, attachments=None, try_update=None):
         """Send a message to the Guilded announcements channel"""
         if not ENABLE_CROSS_POSTING:
             logger.warning("Cross-posting is disabled - missing configuration")
             return False
         
         await self.init_session()
+        
+        # Use configuration setting if not explicitly specified
+        if try_update is None:
+            try_update = GUILDED_UPDATE_EXISTING
+        
+        # First try to update an existing announcement if requested
+        if try_update:
+            latest_announcement = await self.get_latest_announcement()
+            if latest_announcement:
+                announcement_id = latest_announcement.get('id')
+                logger.info(f"Attempting to update existing announcement: {announcement_id}")
+                
+                # Add a timestamp to show this is an update
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                updated_content = f"{content}\n\n*Updated: {timestamp}*"
+                
+                update_success = await self.update_announcement(announcement_id, updated_content, title)
+                if update_success:
+                    logger.info("✅ Successfully updated existing announcement (may sync to Roblox)")
+                    return True
+                else:
+                    logger.warning("Failed to update existing announcement")
+                    if not GUILDED_FALLBACK_TO_NEW:
+                        logger.warning("Fallback to new post disabled - stopping here")
+                        return False
+                    logger.info("Falling back to creating new announcement")
         
         try:
             # First, get channel info to determine the correct endpoint
