@@ -70,7 +70,7 @@ class GuildedCrossPoster:
             return None
     
     async def update_announcement(self, announcement_id, content, title=None):
-        """Update an existing announcement"""
+        """Update an existing announcement using PATCH method"""
         if not ENABLE_CROSS_POSTING:
             logger.warning("Cross-posting is disabled - missing configuration")
             return False
@@ -85,16 +85,24 @@ class GuildedCrossPoster:
                 'content': content
             }
             
+            # Use proper headers as shown in the API documentation
+            headers = {
+                'Authorization': f'Bearer {GUILDED_BOT_TOKEN}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            
             logger.info(f"Updating announcement {announcement_id}: {url}")
             logger.info(f"Update payload: {payload}")
             
-            async with self.session.put(url, json=payload, headers=self.guilded_headers) as response:
+            # Use PATCH method as specified in the API docs
+            async with self.session.patch(url, json=payload, headers=headers) as response:
                 response_text = await response.text()
-                logger.info(f"Update response status: {response.status}")
-                logger.info(f"Update response text: {response_text}")
+                logger.info(f"PATCH response status: {response.status}")
+                logger.info(f"PATCH response text: {response_text}")
                 
                 if response.status == 200:
-                    logger.info(f"✅ Successfully updated announcement {announcement_id}")
+                    logger.info(f"✅ Successfully updated announcement {announcement_id} using PATCH")
                     return True
                 else:
                     logger.error(f"❌ Failed to update announcement: {response.status} - {response_text}")
@@ -116,7 +124,7 @@ class GuildedCrossPoster:
         if try_update is None:
             try_update = GUILDED_UPDATE_EXISTING
         
-        # First try to update an existing announcement if requested
+        # Try to update an existing announcement if requested
         if try_update:
             latest_announcement = await self.get_latest_announcement()
             if latest_announcement:
@@ -130,7 +138,7 @@ class GuildedCrossPoster:
                 
                 update_success = await self.update_announcement(announcement_id, updated_content, title)
                 if update_success:
-                    logger.info("✅ Successfully updated existing announcement (may sync to Roblox)")
+                    logger.info("✅ Successfully updated existing announcement (better for Roblox sync)")
                     return True
                 else:
                     logger.warning("Failed to update existing announcement")
@@ -169,11 +177,18 @@ class GuildedCrossPoster:
                 url = f"{self.guilded_base_url}/channels/{GUILDED_ANNOUNCEMENTS_CHANNEL_ID}/messages"
                 logger.info(f"Using messages endpoint: {url}")
             
+            # Use consistent headers format
+            headers = {
+                'Authorization': f'Bearer {GUILDED_BOT_TOKEN}',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            
             logger.info(f"Payload: {payload}")
-            logger.info(f"Headers: {dict(self.guilded_headers)}")
+            logger.info(f"Headers: {dict(headers)}")
             
             # Send to Guilded
-            async with self.session.post(url, json=payload, headers=self.guilded_headers) as response:
+            async with self.session.post(url, json=payload, headers=headers) as response:
                 response_text = await response.text()
                 logger.info(f"Response status: {response.status}")
                 logger.info(f"Response text: {response_text}")
