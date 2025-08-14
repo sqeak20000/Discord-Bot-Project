@@ -48,3 +48,33 @@ ENABLE_ROBLOX_POSTING = all([
 # Guilded announcement update strategy
 GUILDED_UPDATE_EXISTING = os.getenv('GUILDED_UPDATE_EXISTING', 'true').lower() == 'true'
 GUILDED_FALLBACK_TO_NEW = os.getenv('GUILDED_FALLBACK_TO_NEW', 'true').lower() == 'true'
+
+# Automatic role management configuration
+# Role combinations that should trigger automatic role assignment
+# Format: {'required_roles': ['Role1', 'Role2'], 'target_role': 'NewRole', 'enabled': True}
+AUTO_ROLE_COMBINATIONS = [
+    {
+        'name': 'Verified',  # Friendly name for logging
+        'required_roles': ['Rover verified', 'Double Counter verified'],  # User must have BOTH of these roles
+        'target_role': 'Verified',  # Role to assign when user has both required roles
+        'enabled': True,  # Whether this combination is active
+        'remove_on_loss': False,  # Whether to remove target role if user loses a required role
+    },
+    # You can add more combinations here:
+    # {
+    #     'name': 'Super Moderator',
+    #     'required_roles': ['Server Mod', 'Trusted Member'],
+    #     'target_role': 'Super Moderator',
+    #     'enabled': False,  # Disabled by default
+    #     'remove_on_loss': True,
+    # },
+]
+
+# Enable/disable automatic role management
+ENABLE_AUTO_ROLES = os.getenv('ENABLE_AUTO_ROLES', 'true').lower() == 'true'
+
+# Role management logging
+AUTO_ROLE_LOG_CHANNEL_ID = int(os.getenv('AUTO_ROLE_LOG_CHANNEL_ID', LOG_CHANNEL_ID))  # Channel for role change logs
+
+# Role self-service configuration
+ROLE_CHECK_COOLDOWN = int(os.getenv('ROLE_CHECK_COOLDOWN', '60'))  # Cooldown in seconds between user role checks

@@ -11,6 +11,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 intents = discord.Intents.default()
 intents.message_content = True  # Still needed for evidence handling
+intents.members = True  # Required for member update events
+intents.guilds = True  # Required for role management
 
 # Use commands.Bot instead of discord.Client for slash command support
 bot = commands.Bot(command_prefix='!', intents=intents)
@@ -22,6 +24,14 @@ async def on_ready():
     # Setup cross-posting functionality
     if ENABLE_CROSS_POSTING:
         await setup_cross_posting()
+    
+    # Setup role management system
+    try:
+        from role_manager import setup_role_management
+        await setup_role_management(bot)
+        print("✅ Role management system initialized")
+    except Exception as e:
+        print(f"❌ Failed to setup role management: {e}")
     
     # Setup and sync slash commands when bot starts up
     try:
@@ -160,6 +170,51 @@ async def on_message(message):
         await handle_test_update(bot, message)
     elif command.startswith("!listannouncements"):
         await handle_list_announcements(bot, message)
+    elif command.startswith("!checkroles"):
+        await handle_check_roles_command(bot, message)
+    elif command.startswith("!listrolecombo"):
+        await handle_list_role_combos_command(bot, message)
+    elif command.startswith("!rolepanel"):
+        await handle_role_panel_command(bot, message)
+
+@bot.event
+async def on_member_update(before, after):
+    """Handle member update events for automatic role management"""
+    try:
+        from role_manager import handle_member_update
+        await handle_member_update(before, after)
+    except Exception as e:
+        print(f"❌ Error in member update handler: {e}")
+
+async def handle_check_roles_command(bot, message):
+    """Handle the !checkroles command"""
+    try:
+        from role_manager import handle_check_roles_command
+        await handle_check_roles_command(bot, message)
+    except ImportError:
+        await message.channel.send("❌ Role management system not available.", delete_after=10)
+    except Exception as e:
+        await message.channel.send(f"❌ Error checking roles: {e}")
+
+async def handle_list_role_combos_command(bot, message):
+    """Handle the !listrolecombo command"""
+    try:
+        from role_manager import handle_list_role_combos_command
+        await handle_list_role_combos_command(bot, message)
+    except ImportError:
+        await message.channel.send("❌ Role management system not available.", delete_after=10)
+    except Exception as e:
+        await message.channel.send(f"❌ Error listing role combinations: {e}")
+
+async def handle_role_panel_command(bot, message):
+    """Handle the !rolepanel command"""
+    try:
+        from role_manager import handle_role_panel_command
+        await handle_role_panel_command(bot, message)
+    except ImportError:
+        await message.channel.send("❌ Role management system not available.", delete_after=10)
+    except Exception as e:
+        await message.channel.send(f"❌ Error sending role panel: {e}")
 
 async def handle_test_crosspost(bot, message):
     """Handle the !testcrosspost command to test cross-posting functionality"""
