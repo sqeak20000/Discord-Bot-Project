@@ -9,7 +9,7 @@ from crosspost import handle_discord_update_message, setup_cross_posting, cleanu
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 intents.message_content = True  # Still needed for evidence handling
 intents.members = True  # Required for member update events
 intents.guilds = True  # Required for role management
