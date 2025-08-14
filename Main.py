@@ -9,10 +9,20 @@ from crosspost import handle_discord_update_message, setup_cross_posting, cleanu
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-intents = discord.Intents.all()
-intents.message_content = True  # Still needed for evidence handling
-intents.members = True  # Required for member update events
-intents.guilds = True  # Required for role management
+intents = discord.Intents.default()
+intents.message_content = True  # Required for message commands and evidence handling
+intents.members = True  # Required for member update events and role management
+intents.guilds = True  # Required for role management and guild operations
+
+# Additional intents for comprehensive functionality
+intents.guild_messages = True  # Required for message processing in guilds
+intents.guild_reactions = True  # Useful for evidence confirmation reactions
+intents.guild_typing = False  # Not needed - save bandwidth
+intents.dm_messages = False  # Not needed - bot operates in guilds only
+intents.dm_reactions = False  # Not needed - bot operates in guilds only
+intents.dm_typing = False  # Not needed - bot operates in guilds only
+intents.voice_states = False  # Not needed unless voice features added later
+intents.presences = False  # Not needed - privacy conscious and saves bandwidth
 
 # Use commands.Bot instead of discord.Client for slash command support
 bot = commands.Bot(command_prefix='!', intents=intents)
@@ -553,11 +563,39 @@ if __name__ == "__main__":
         bot.run(BOT_TOKEN)
     except KeyboardInterrupt:
         print("🔌 Bot shutting down...")
+    except discord.errors.PrivilegedIntentsRequired:
+        print("❌ **PRIVILEGED INTENTS ERROR**")
+        print("Your bot needs privileged intents enabled in the Discord Developer Portal:")
+        print("1. Go to https://discord.com/developers/applications/")
+        print("2. Select your bot application")
+        print("3. Go to the 'Bot' section")
+        print("4. Enable 'Server Members Intent' under 'Privileged Gateway Intents'")
+        print("5. Save changes and restart your bot")
+        print("\nAlternatively, you can disable role management features by setting ENABLE_AUTO_ROLES=false in your .env file")
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
     finally:
-        # Cleanup cross-posting resources
+        # Cleanup cross-posting resources with proper event loop handling
         if ENABLE_CROSS_POSTING:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(cleanup_cross_posting())
-            else:
-                loop.run_until_complete(cleanup_cross_posting())
+            try:
+                # Try to get existing event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # If we're in an async context, create a task
+                    loop.create_task(cleanup_cross_posting())
+                except RuntimeError:
+                    # No running loop, create a new one for cleanup
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if not loop.is_closed():
+                            loop.run_until_complete(cleanup_cross_posting())
+                    except RuntimeError:
+                        # Create a new event loop for cleanup
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            loop.run_until_complete(cleanup_cross_posting())
+                        finally:
+                            loop.close()
+            except Exception as cleanup_error:
+                print(f"⚠️ Cleanup error (non-critical): {cleanup_error}")
