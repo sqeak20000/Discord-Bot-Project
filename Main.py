@@ -83,37 +83,19 @@ async def on_thread_create(thread):
                     owner = await guild.fetch_member(thread.owner_id)
                 except discord.NotFound:
                     logging.warning(f"⚠️ Could not find owner for thread {thread.id}")
-                    return
-
-            # Prepare permission overwrites
-            # Start with existing overwrites to not break anything else
-            overwrites = thread.overwrites
-            
-            # Deny sending messages for everyone
-            overwrites[guild.default_role] = discord.PermissionOverwrite(send_messages=False)
-            
-            # Allow owner to send messages
-            overwrites[owner] = discord.PermissionOverwrite(send_messages=True)
-            
-            # Allow moderators to send messages
-            for role_name in ALLOWED_ROLES:
-                role = discord.utils.get(guild.roles, name=role_name)
-                if role:
-                    overwrites[role] = discord.PermissionOverwrite(send_messages=True)
-            
-            # Apply the permissions
-            await thread.edit(overwrites=overwrites)
-            logging.info(f"✅ Configured permissions for forum post: {thread.name}")
+                    # Continue without owner object
             
             # Send a system message explaining the restriction
+            owner_mention = owner.mention if owner else "the author"
             await thread.send(
                 f"🔒 **Thread Locked to Owner**\n"
-                f"Only the author ({owner.mention}) and moderators can comment on this post.\n"
+                f"Only {owner_mention} and moderators can comment on this post.\n"
                 f"Others can still view and react."
             )
+            logging.info(f"✅ Sent restriction notice to forum post: {thread.name}")
             
         except Exception as e:
-            logging.error(f"❌ Error configuring forum thread permissions: {e}")
+            logging.error(f"❌ Error configuring forum thread: {e}")
 
 @bot.event
 async def on_thread_join(thread):
@@ -185,6 +167,20 @@ async def on_message(message):
     if message.author == bot.user:
         return  # Ignore messages from the bot itself
     
+    # Enforce forum channel restrictions (Only owner and mods can chat)
+    if isinstance(message.channel, discord.Thread) and message.channel.parent_id == FORUM_CHANNEL_ID:
+        is_owner = message.author.id == message.channel.owner_id
+        is_mod = any(role.name in ALLOWED_ROLES for role in message.author.roles)
+        
+        if not (is_owner or is_mod):
+            try:
+                await message.delete()
+                # Optional: Send a temporary warning message
+                # await message.channel.send(f"{message.author.mention}, only the post owner can comment here.", delete_after=5)
+            except Exception as e:
+                logging.error(f"Failed to delete unauthorized forum message: {e}")
+            return
+
     # Handle cross-posting for updates channel
     if ENABLE_CROSS_POSTING:
         await handle_discord_update_message(message)
