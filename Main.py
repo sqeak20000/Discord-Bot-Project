@@ -240,10 +240,16 @@ async def on_message(message):
             await user.timeout(None, reason=reason)
             await message.channel.send(f"✅ **{user.name}**'s timeout has been removed.")
             from utils import log_action, notify_user_dm
+            
+            # Debug print to verify arguments and ensure new code is running
+            print(f"DEBUG: notify_user_dm args: user={type(user)}, guild_name={type(message.guild.name)}, moderator={type(message.author)}, reason={type(reason)}")
+            
+            # Correct order: user, action_type, guild_name, moderator, reason
             await notify_user_dm(user, "Timeout Removed", message.guild.name, message.author, reason)
             await log_action(message.guild, message.author, user, "Untimeout", reason)
         except Exception as e:
             await message.channel.send(f"❌ Failed to remove timeout: {e}")
+            print(f"❌ Error in untimeout: {e}")
 
     elif command.startswith("!ticketblacklist"):
         from moderation import handle_ticketblacklist_command
