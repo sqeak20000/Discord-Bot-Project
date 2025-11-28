@@ -377,6 +377,60 @@ async def setup_moderation_commands(bot):
         except discord.HTTPException:
             await interaction.followup.send("❌ Failed to add the ticket blacklist role.", ephemeral=True)
 
+    @bot.tree.command(name="unban", description="Unban a user from the server")
+    @app_commands.describe(
+        user_id="The ID of the user to unban",
+        reason="Reason for the unban"
+    )
+    async def slash_unban(interaction: discord.Interaction, user_id: str, reason: str):
+        if not has_permission(interaction.user):
+            await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        try:
+            user_obj = await bot.fetch_user(int(user_id))
+            await interaction.guild.unban(user_obj, reason=reason)
+            
+            await log_action(interaction.guild, interaction.user, user_obj, "Unban", reason)
+            await interaction.followup.send(f"✅ **{user_obj.name}** has been unbanned.\nReason: {reason}")
+            
+        except ValueError:
+             await interaction.followup.send("❌ Invalid User ID provided.", ephemeral=True)
+        except discord.NotFound:
+            await interaction.followup.send("❌ User not found or not banned.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to unban user: {e}", ephemeral=True)
+
+    @bot.tree.command(name="untimeout", description="Remove timeout from a user")
+    @app_commands.describe(
+        user="The user to untimeout",
+        reason="Reason for removing timeout"
+    )
+    async def slash_untimeout(interaction: discord.Interaction, user: discord.Member, reason: str):
+        if not has_permission(interaction.user):
+            await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        try:
+            if not user.is_timed_out():
+                await interaction.followup.send(f"⚠️ **{user.name}** is not currently timed out.", ephemeral=True)
+                return
+
+            await user.timeout(None, reason=reason)
+            
+            # Notify user
+            await notify_user_dm(user, "Timeout Removed", reason, interaction.guild.name)
+            
+            await log_action(interaction.guild, interaction.user, user, "Untimeout", reason)
+            await interaction.followup.send(f"✅ **{user.name}**'s timeout has been removed.\nReason: {reason}")
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ Failed to remove timeout: {e}", ephemeral=True)
+
 
 # Keep existing message-based commands for backward compatibility
 async def handle_ban_command(client, message):

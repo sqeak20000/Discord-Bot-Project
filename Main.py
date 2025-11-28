@@ -197,6 +197,54 @@ async def on_message(message):
     elif command.startswith("!timeout"):
         from moderation import handle_timeout_command
         await handle_timeout_command(bot, message)
+    elif command.startswith("!unban"):
+        # Simple message command handler for unban
+        if not any(role.name in ALLOWED_ROLES for role in message.author.roles):
+            return
+            
+        parts = message.content.split(" ", 2)
+        if len(parts) < 3:
+            await message.channel.send("Usage: !unban <user_id> <reason>")
+            return
+            
+        user_id = parts[1]
+        reason = parts[2]
+        
+        try:
+            user_obj = await bot.fetch_user(int(user_id))
+            await message.guild.unban(user_obj, reason=reason)
+            await message.channel.send(f"✅ **{user_obj.name}** has been unbanned.")
+            from utils import log_action
+            await log_action(message.guild, message.author, user_obj, "Unban", reason)
+        except Exception as e:
+            await message.channel.send(f"❌ Failed to unban: {e}")
+
+    elif command.startswith("!untimeout"):
+        # Simple message command handler for untimeout
+        if not any(role.name in ALLOWED_ROLES for role in message.author.roles):
+            return
+            
+        parts = message.content.split(" ", 2)
+        if len(parts) < 3:
+            await message.channel.send("Usage: !untimeout <@user> <reason>")
+            return
+            
+        if not message.mentions:
+            await message.channel.send("❌ Please mention a user to untimeout.")
+            return
+            
+        user = message.mentions[0]
+        reason = parts[2]
+        
+        try:
+            await user.timeout(None, reason=reason)
+            await message.channel.send(f"✅ **{user.name}**'s timeout has been removed.")
+            from utils import log_action, notify_user_dm
+            await notify_user_dm(user, "Timeout Removed", reason, message.guild.name)
+            await log_action(message.guild, message.author, user, "Untimeout", reason)
+        except Exception as e:
+            await message.channel.send(f"❌ Failed to remove timeout: {e}")
+
     elif command.startswith("!ticketblacklist"):
         from moderation import handle_ticketblacklist_command
         await handle_ticketblacklist_command(bot, message)
