@@ -88,6 +88,9 @@ async def on_thread_create(thread):
     Event handler for when a new thread is created.
     Used to restrict commenting in the specific forum channel.
     """
+    # Debug log to verify event triggering
+    print(f"DEBUG: Thread created: '{thread.name}' (ID: {thread.id}) in Channel ID: {thread.parent_id}")
+    
     # Check if the thread is in the target forum channel
     if thread.parent_id == FORUM_CHANNEL_ID:
         try:
