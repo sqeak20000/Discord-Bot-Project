@@ -45,19 +45,19 @@ async def on_ready():
     
     # Setup and sync slash commands when bot starts up
     try:
-        print("Setting up moderation commands...")
+        logging.info("Setting up moderation commands...")
         await setup_moderation_commands(bot)
         
         # Verify forum channel access
         forum_channel = bot.get_channel(FORUM_CHANNEL_ID)
         if forum_channel:
-            print(f"✅ Found Forum Channel: {forum_channel.name} (ID: {forum_channel.id})")
+            logging.info(f"✅ Found Forum Channel: {forum_channel.name} (ID: {forum_channel.id})")
         else:
-            print(f"❌ Could not find Forum Channel with ID: {FORUM_CHANNEL_ID}. Check permissions or ID.")
+            logging.error(f"❌ Could not find Forum Channel with ID: {FORUM_CHANNEL_ID}. Check permissions or ID.")
             
     except Exception as e:
-        print(f"❌ Failed to setup slash commands: {e}")
-        print("🤖 Bot will continue running with message commands only.")
+        logging.error(f"❌ Failed to setup slash commands: {e}")
+        logging.info("🤖 Bot will continue running with message commands only.")
 
 @bot.event
 async def on_thread_create(thread):
@@ -66,7 +66,7 @@ async def on_thread_create(thread):
     Used to restrict commenting in the specific forum channel.
     """
     # Debug log to verify event triggering
-    print(f"DEBUG: Thread created: '{thread.name}' (ID: {thread.id}) in Channel ID: {thread.parent_id}")
+    logging.info(f"DEBUG: Thread created: '{thread.name}' (ID: {thread.id}) in Channel ID: {thread.parent_id}")
     
     # Check if the thread is in the target forum channel
     if thread.parent_id == FORUM_CHANNEL_ID:
@@ -82,7 +82,7 @@ async def on_thread_create(thread):
                 try:
                     owner = await guild.fetch_member(thread.owner_id)
                 except discord.NotFound:
-                    print(f"⚠️ Could not find owner for thread {thread.id}")
+                    logging.warning(f"⚠️ Could not find owner for thread {thread.id}")
                     return
 
             # Prepare permission overwrites
@@ -103,7 +103,7 @@ async def on_thread_create(thread):
             
             # Apply the permissions
             await thread.edit(overwrites=overwrites)
-            print(f"✅ Configured permissions for forum post: {thread.name}")
+            logging.info(f"✅ Configured permissions for forum post: {thread.name}")
             
             # Send a system message explaining the restriction
             await thread.send(
@@ -113,12 +113,12 @@ async def on_thread_create(thread):
             )
             
         except Exception as e:
-            print(f"❌ Error configuring forum thread permissions: {e}")
+            logging.error(f"❌ Error configuring forum thread permissions: {e}")
 
 @bot.event
 async def on_thread_join(thread):
     """Debug event to see if bot joins threads"""
-    print(f"DEBUG: Joined thread: '{thread.name}' (ID: {thread.id})")
+    logging.info(f"DEBUG: Joined thread: '{thread.name}' (ID: {thread.id})")
 
 async def handle_sync_commands(bot, message):
     """Handle the !synccommands command to manually sync slash commands"""
