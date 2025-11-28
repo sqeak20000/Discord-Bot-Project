@@ -2,7 +2,7 @@ import discord
 import asyncio
 import logging
 from discord.ext import commands
-from config import BOT_TOKEN, ENABLE_CROSS_POSTING
+from config import BOT_TOKEN, ENABLE_CROSS_POSTING, FORUM_CHANNEL_ID, ALLOWED_ROLES
 from moderation import setup_moderation_commands
 from crosspost import handle_discord_update_message, setup_cross_posting, cleanup_cross_posting
 
@@ -81,6 +81,59 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Failed to setup slash commands: {e}")
         print("🤖 Bot will continue running with message commands only.")
+
+@bot.event
+async def on_thread_create(thread):
+    """
+    Event handler for when a new thread is created.
+    Used to restrict commenting in the specific forum channel.
+    """
+    # Check if the thread is in the target forum channel
+    if thread.parent_id == FORUM_CHANNEL_ID:
+        try:
+            # Delay slightly to ensure thread is fully created and accessible
+            await asyncio.sleep(1)
+            
+            guild = thread.guild
+            owner = thread.owner
+            
+            # If owner is not cached, try to fetch them
+            if owner is None:
+                try:
+                    owner = await guild.fetch_member(thread.owner_id)
+                except discord.NotFound:
+                    print(f"⚠️ Could not find owner for thread {thread.id}")
+                    return
+
+            # Prepare permission overwrites
+            # Start with existing overwrites to not break anything else
+            overwrites = thread.overwrites
+            
+            # Deny sending messages for everyone
+            overwrites[guild.default_role] = discord.PermissionOverwrite(send_messages=False)
+            
+            # Allow owner to send messages
+            overwrites[owner] = discord.PermissionOverwrite(send_messages=True)
+            
+            # Allow moderators to send messages
+            for role_name in ALLOWED_ROLES:
+                role = discord.utils.get(guild.roles, name=role_name)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(send_messages=True)
+            
+            # Apply the permissions
+            await thread.edit(overwrites=overwrites)
+            print(f"✅ Configured permissions for forum post: {thread.name}")
+            
+            # Send a system message explaining the restriction
+            await thread.send(
+                f"🔒 **Thread Locked to Owner**\n"
+                f"Only the author ({owner.mention}) and moderators can comment on this post.\n"
+                f"Others can still view and react."
+            )
+            
+        except Exception as e:
+            print(f"❌ Error configuring forum thread permissions: {e}")
 
 async def handle_sync_commands(bot, message):
     """Handle the !synccommands command to manually sync slash commands"""
