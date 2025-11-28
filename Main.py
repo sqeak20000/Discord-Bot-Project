@@ -215,7 +215,17 @@ async def on_message(message):
             await message.guild.unban(user_obj, reason=reason)
             await message.channel.send(f"✅ **{user_obj.name}** has been unbanned.")
             from utils import log_action
-            await log_action(message.guild, message.author, user_obj, "Unban", reason)
+            
+            # Create a mock message for logging since we don't have mentions in the command for ID-based unban
+            mock_msg = type('MockMessage', (), {
+                'mentions': [user_obj],
+                'attachments': [],
+                'content': message.content,
+                'author': message.author,
+                'channel': message.channel
+            })()
+            
+            await log_action(bot, mock_msg, "Unban", message.author, reason)
         except Exception as e:
             await message.channel.send(f"❌ Failed to unban: {e}")
 
@@ -246,7 +256,8 @@ async def on_message(message):
             
             # Correct order: user, action_type, guild_name, moderator, reason
             await notify_user_dm(user, "Timeout Removed", message.guild.name, message.author, reason)
-            await log_action(message.guild, message.author, user, "Untimeout", reason)
+            # Use the original message for logging since it has mentions
+            await log_action(bot, message, "Untimeout", message.author, reason)
         except Exception as e:
             await message.channel.send(f"❌ Failed to remove timeout: {e}")
             logging.error(f"❌ Error in untimeout: {e}")
