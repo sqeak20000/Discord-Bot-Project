@@ -423,7 +423,7 @@ async def setup_moderation_commands(bot):
             await user.timeout(None, reason=reason)
             
             # Notify user
-            await notify_user_dm(user, "Timeout Removed", reason, interaction.guild.name)
+            await notify_user_dm(user, "Timeout Removed", interaction.guild.name, interaction.user, reason)
             
             await log_action(interaction.guild, interaction.user, user, "Untimeout", reason)
             await interaction.followup.send(f"✅ **{user.name}**'s timeout has been removed.\nReason: {reason}")

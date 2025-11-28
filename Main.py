@@ -240,7 +240,7 @@ async def on_message(message):
             await user.timeout(None, reason=reason)
             await message.channel.send(f"✅ **{user.name}**'s timeout has been removed.")
             from utils import log_action, notify_user_dm
-            await notify_user_dm(user, "Timeout Removed", reason, message.guild.name)
+            await notify_user_dm(user, "Timeout Removed", message.guild.name, message.author, reason)
             await log_action(message.guild, message.author, user, "Untimeout", reason)
         except Exception as e:
             await message.channel.send(f"❌ Failed to remove timeout: {e}")
