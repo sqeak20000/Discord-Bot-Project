@@ -2,7 +2,7 @@ import discord
 import asyncio
 import logging
 from discord.ext import commands
-from config import BOT_TOKEN, ENABLE_CROSS_POSTING, FORUM_CHANNEL_ID, ALLOWED_ROLES
+from config import BOT_TOKEN, ENABLE_CROSS_POSTING, FORUM_CHANNEL_ID, ALLOWED_ROLES, UNIVERSE_ID, ROBLOX_API_KEY
 from moderation import setup_moderation_commands
 from crosspost import handle_discord_update_message, setup_cross_posting, cleanup_cross_posting
 from robloxBan import setup_roblox_ban_command, get_id_from_username, send_ban_request
@@ -30,7 +30,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
+    logging.info(f'Logged in as {bot.user}')
     
     # Setup cross-posting functionality
     if ENABLE_CROSS_POSTING:
@@ -40,9 +40,9 @@ async def on_ready():
     try:
         from role_manager import setup_role_management
         await setup_role_management(bot)
-        print("✅ Role management system initialized")
+        logging.info("✅ Role management system initialized")
     except Exception as e:
-        print(f"❌ Failed to setup role management: {e}")
+        logging.error(f"❌ Failed to setup role management: {e}")
     
     # Setup and sync slash commands when bot starts up
     try:
@@ -124,14 +124,14 @@ async def handle_sync_commands(bot, message):
     
     try:
         # Re-setup commands first (in case there were changes)
-        print("🔄 Re-setting up moderation commands...")
+        logging.info("🔄 Re-setting up moderation commands...")
         await setup_moderation_commands(bot)
         
         # Sync with retry logic
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                print(f"🔄 Syncing slash commands (attempt {attempt + 1}/{max_retries})...")
+                logging.info(f"🔄 Syncing slash commands (attempt {attempt + 1}/{max_retries})...")
                 synced = await bot.tree.sync()
                 
                 # Success message
@@ -141,7 +141,7 @@ async def handle_sync_commands(bot, message):
                     f"**Available commands:**\n{command_list}\n\n"
                     f"*Slash commands should be available immediately in Discord.*"
                 )
-                print(f"✅ Manual sync completed: {len(synced)} commands synced")
+                logging.info(f"✅ Manual sync completed: {len(synced)} commands synced")
                 return
                 
             except discord.HTTPException as e:
@@ -158,17 +158,17 @@ async def handle_sync_commands(bot, message):
                         return
                 else:
                     await message.channel.send(f"❌ **HTTP Error during sync:** {e}")
-                    print(f"❌ HTTP Error during manual sync: {e}")
+                    logging.error(f"❌ HTTP Error during manual sync: {e}")
                     return
                     
             except Exception as sync_error:
                 await message.channel.send(f"❌ **Unexpected error during sync:** {sync_error}")
-                print(f"❌ Unexpected error during manual sync: {sync_error}")
+                logging.error(f"❌ Unexpected error during manual sync: {sync_error}")
                 return
                 
     except Exception as e:
         await message.channel.send(f"❌ **Failed to setup commands:** {e}")
-        print(f"❌ Failed to setup commands during manual sync: {e}")
+        logging.error(f"❌ Failed to setup commands during manual sync: {e}")
 
 @bot.event
 async def on_message(message):
@@ -259,7 +259,7 @@ async def on_message(message):
             await message.channel.send(f"✅ **{user.name}**'s timeout has been removed.")
             from utils import log_action, notify_user_dm
             
-            # Debug print to verify arguments and ensure new code is running
+            # Debug logging.info to verify arguments and ensure new code is running
             logging.info(f"DEBUG: notify_user_dm args: user={type(user)}, guild_name={type(message.guild.name)}, moderator={type(message.author)}, reason={type(reason)}")
             
             # Correct order: user, action_type, guild_name, moderator, reason
@@ -345,6 +345,13 @@ async def on_message(message):
                 return
             target_id = found_id
             target_name = target_input
+            # --- Add this temporarily to debug ---
+        logging.info("--- DEBUGGING VARIABLES ---")
+        logging.info(f"Universe ID Type: {type(UNIVERSE_ID)}")
+        logging.info(f"Universe ID Length: {len(str(UNIVERSE_ID))}")
+        logging.info(f"Universe ID Value: '{UNIVERSE_ID}'") # The quotes will reveal hidden spaces
+        logging.info(f"Key Length: {len(str(ROBLOX_API_KEY))}")
+        logging.info("---------------------------")
 
         # 4. Execute Ban
         success, api_response = await send_ban_request(target_id, reason, duration)
@@ -361,7 +368,7 @@ async def on_member_update(before, after):
         from role_manager import handle_member_update
         await handle_member_update(before, after)
     except Exception as e:
-        print(f"❌ Error in member update handler: {e}")
+        logging.info(f"❌ Error in member update handler: {e}")
 
 async def handle_check_roles_command(bot, message):
     """Handle the !checkroles command"""
@@ -729,18 +736,18 @@ if __name__ == "__main__":
     try:
         bot.run(BOT_TOKEN)
     except KeyboardInterrupt:
-        print("🔌 Bot shutting down...")
+        logging.info("🔌 Bot shutting down...")
     except discord.errors.PrivilegedIntentsRequired:
-        print("❌ **PRIVILEGED INTENTS ERROR**")
-        print("Your bot needs privileged intents enabled in the Discord Developer Portal:")
-        print("1. Go to https://discord.com/developers/applications/")
-        print("2. Select your bot application")
-        print("3. Go to the 'Bot' section")
-        print("4. Enable 'Server Members Intent' under 'Privileged Gateway Intents'")
-        print("5. Save changes and restart your bot")
-        print("\nAlternatively, you can disable role management features by setting ENABLE_AUTO_ROLES=false in your .env file")
+        logging.error("❌ **PRIVILEGED INTENTS ERROR**")
+        logging.info("Your bot needs privileged intents enabled in the Discord Developer Portal:")
+        logging.info("1. Go to https://discord.com/developers/applications/")
+        logging.info("2. Select your bot application")
+        logging.info("3. Go to the 'Bot' section")
+        logging.info("4. Enable 'Server Members Intent' under 'Privileged Gateway Intents'")
+        logging.info("5. Save changes and restart your bot")
+        logging.info("\nAlternatively, you can disable role management features by setting ENABLE_AUTO_ROLES=false in your .env file")
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        logging.info(f"❌ Unexpected error: {e}")
     finally:
         # Cleanup cross-posting resources with proper event loop handling
         if ENABLE_CROSS_POSTING:
@@ -765,4 +772,4 @@ if __name__ == "__main__":
                         finally:
                             loop.close()
             except Exception as cleanup_error:
-                print(f"⚠️ Cleanup error (non-critical): {cleanup_error}")
+                logging.error(f"⚠️ Cleanup error (non-critical): {cleanup_error}")
