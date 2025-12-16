@@ -5,6 +5,7 @@ from discord.ext import commands
 from config import BOT_TOKEN, ENABLE_CROSS_POSTING, FORUM_CHANNEL_ID, ALLOWED_ROLES
 from moderation import setup_moderation_commands
 from crosspost import handle_discord_update_message, setup_cross_posting, cleanup_cross_posting
+from robloxBan import setup_roblox_ban_command
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -47,7 +48,14 @@ async def on_ready():
     try:
         logging.info("Setting up moderation commands...")
         await setup_moderation_commands(bot)
-        
+
+        logging.info("Setting up Roblox ban commands...")
+        try:
+            await setup_roblox_ban_command(bot)
+            logging.info("✅ Roblox ban commands initialized")
+        except Exception as e:
+            logging.error(f"❌ Failed to setup Roblox commands: {e}")
+            
         # Verify forum channel access
         forum_channel = bot.get_channel(FORUM_CHANNEL_ID)
         if forum_channel:

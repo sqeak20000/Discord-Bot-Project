@@ -39,6 +39,9 @@ ENABLE_CROSS_POSTING = all([
 # Roblox integration configuration
 ROBLOX_COOKIE = os.getenv('ROBLOX_COOKIE')  # Roblox account cookie (.ROBLOSECURITY)
 ROBLOX_GROUP_ID = os.getenv('ROBLOX_GROUP_ID')  # Roblox group ID where bot has permission to post
+ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
+UNIVERSE_ID = os.getenv("UNIVERSE_ID")
+ROBLOX_TOPIC_NAME = "DiscordBanRequest"
 
 # Roblox feature toggle
 ENABLE_ROBLOX_POSTING = all([
