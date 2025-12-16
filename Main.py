@@ -5,7 +5,7 @@ from discord.ext import commands
 from config import BOT_TOKEN, ENABLE_CROSS_POSTING, FORUM_CHANNEL_ID, ALLOWED_ROLES
 from moderation import setup_moderation_commands
 from crosspost import handle_discord_update_message, setup_cross_posting, cleanup_cross_posting
-from robloxBan import setup_roblox_ban_command
+from robloxBan import setup_roblox_ban_command, get_id_from_username, send_ban_request
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -55,7 +55,7 @@ async def on_ready():
             logging.info("✅ Roblox ban commands initialized")
         except Exception as e:
             logging.error(f"❌ Failed to setup Roblox commands: {e}")
-            
+
         # Verify forum channel access
         forum_channel = bot.get_channel(FORUM_CHANNEL_ID)
         if forum_channel:
@@ -293,6 +293,66 @@ async def on_message(message):
         await handle_list_role_combos_command(bot, message)
     elif command.startswith("!rolepanel"):
         await handle_role_panel_command(bot, message)
+    elif command.startswith("!robloxban"):
+        # 1. Permission Check
+        if not any(role.name in ALLOWED_ROLES for role in message.author.roles):
+            await message.channel.send("❌ You don't have permission to use this command.")
+            return
+
+        # 2. Parse Arguments
+        # Expected format: !robloxban <username_or_id> <reason> [duration]
+        parts = message.content.split(" ", 3)
+        
+        if len(parts) < 3:
+            await message.channel.send("Usage: `!robloxban <username_or_id> <reason> [duration_seconds]`\nExample: `!robloxban Player1 Being mean 60` (or leave duration blank for permanent)")
+            return
+
+        target_input = parts[1]
+        # Check if duration is provided in the 3rd slot, otherwise assume it's part of the reason?
+        # Actually, let's stick to a simpler parser: Last argument is duration IF it's a number, otherwise default to -1.
+        
+        # Re-parsing to handle multi-word reasons safely
+        args = message.content.split(" ")
+        target_input = args[1]
+        
+        # Check if the last argument is a number (duration)
+        possible_duration = args[-1]
+        if possible_duration.isdigit() or (possible_duration.startswith("-") and possible_duration[1:].isdigit()):
+             duration = int(possible_duration)
+             # Re-join everything between target and duration as the reason
+             reason = " ".join(args[2:-1])
+        else:
+             duration = -1 # Permanent
+             # Re-join everything after target as the reason
+             reason = " ".join(args[2:])
+
+        if not reason:
+             await message.channel.send("❌ You must provide a ban reason.")
+             return
+
+        await message.channel.send(f"🔄 **Processing Roblox ban for '{target_input}'...**")
+
+        # 3. Resolve ID (if username was given)
+        target_id = None
+        if target_input.isdigit():
+            target_id = int(target_input)
+            target_name = f"ID: {target_id}"
+        else:
+            # It's a username, look it up
+            found_id, error = await get_id_from_username(target_input)
+            if not found_id:
+                await message.channel.send(f"❌ **Error:** {error}")
+                return
+            target_id = found_id
+            target_name = target_input
+
+        # 4. Execute Ban
+        success, api_response = await send_ban_request(target_id, reason, duration)
+
+        if success:
+            await message.channel.send(f"✅ **Success!** {target_name} has been banned from Roblox.\nReason: {reason}\nDuration: {'Permanent' if duration == -1 else str(duration) + 's'}")
+        else:
+            await message.channel.send(f"❌ **Roblox API Failed:** {api_response}")
 
 @bot.event
 async def on_member_update(before, after):
