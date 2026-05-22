@@ -345,13 +345,6 @@ async def on_message(message):
                 return
             target_id = found_id
             target_name = target_input
-            # --- Add this temporarily to debug ---
-        logging.info("--- DEBUGGING VARIABLES ---")
-        logging.info(f"Universe ID Type: {type(UNIVERSE_ID)}")
-        logging.info(f"Universe ID Length: {len(str(UNIVERSE_ID))}")
-        logging.info(f"Universe ID Value: '{UNIVERSE_ID}'") # The quotes will reveal hidden spaces
-        logging.info(f"Key Length: {len(str(ROBLOX_API_KEY))}")
-        logging.info("---------------------------")
 
         # 4. Execute Ban
         success, api_response = await send_ban_request(target_id, reason, duration)

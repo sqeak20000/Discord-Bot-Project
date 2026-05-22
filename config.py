@@ -29,12 +29,7 @@ GUILDED_SERVER_ID = os.getenv('GUILDED_SERVER_ID')  # Guilded server ID
 GUILDED_ANNOUNCEMENTS_CHANNEL_ID = os.getenv('GUILDED_ANNOUNCEMENTS_CHANNEL_ID')  # Guilded channel ID
 
 # Cross-posting feature toggle
-ENABLE_CROSS_POSTING = all([
-    DISCORD_UPDATES_CHANNEL_ID,
-    GUILDED_BOT_TOKEN,
-    GUILDED_SERVER_ID,
-    GUILDED_ANNOUNCEMENTS_CHANNEL_ID
-])
+ENABLE_CROSS_POSTING = False
 
 # Roblox integration configuration
 ROBLOX_COOKIE = os.getenv('ROBLOX_COOKIE')  # Roblox account cookie (.ROBLOSECURITY)
