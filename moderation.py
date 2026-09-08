@@ -144,8 +144,18 @@ async def cleanup_evidence_messages(evidence_messages_to_delete, delay=3):
             print(f"❌ Error deleting evidence message {msg.id}: {e}")
 
 async def setup_moderation_commands(bot):
-    """Setup slash commands for moderation"""
-    
+    """Setup slash commands for moderation.
+
+    This function is intentionally idempotent: re-running it on the same bot instance
+    should not attempt to re-register the same slash commands, which leads to
+    'Command ... already registered' errors during !synccommands.
+    """
+    if not hasattr(bot, "_moderation_commands_setup"):
+        bot._moderation_commands_setup = False
+
+    if bot._moderation_commands_setup:
+        return
+
     @bot.tree.command(name="ban", description="Ban a user from the server")
     @app_commands.describe(
         user="The user to ban",
@@ -450,6 +460,8 @@ async def setup_moderation_commands(bot):
             await interaction.followup.send("❌ I don't have permission to manage roles for this user.", ephemeral=True)
         except discord.HTTPException:
             await interaction.followup.send("❌ Failed to apply the blacklist roles.", ephemeral=True)
+
+    bot._moderation_commands_setup = True
 
     @bot.tree.command(name="unban", description="Unban a user from the server")
     @app_commands.describe(
