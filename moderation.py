@@ -1,12 +1,68 @@
 import discord
 import asyncio
 from discord import app_commands
-from config import ALLOWED_ROLES, TICKETBLACKLIST_ROLE_NAME
+from config import ALLOWED_ROLES, BLACKLIST_ROLE_NAMES
 from utils import (
     has_permission, has_evidence, safe_send_message, log_action,
     notify_user_dm, ensure_evidence_provided, ask_yes_no_question,
     wait_for_user_response, delete_message_after_delay, parse_duration, parse_moderation_command
 )
+
+BLACKLIST_CATEGORY_LABELS = {
+    "tickets": "Tickets",
+    "code_sharing": "Code Sharing",
+    "exalted": "Exalted",
+    "creations": "Creations",
+}
+
+BLACKLIST_CATEGORY_ALIASES = {
+    "tickets": "tickets",
+    "ticket": "tickets",
+    "code-sharing": "code_sharing",
+    "code_sharing": "code_sharing",
+    "codesharing": "code_sharing",
+    "exalted": "exalted",
+    "creations": "creations",
+    "creation": "creations",
+}
+
+
+def get_requested_blacklist_categories(raw_values=None):
+    """Convert a dict or iterable of category values into the canonical keys."""
+    if raw_values is None:
+        return []
+
+    if isinstance(raw_values, dict):
+        values = raw_values.items()
+        selected = [key for key, enabled in values if enabled]
+        return [BLACKLIST_CATEGORY_ALIASES.get(key.lower().replace('-', '_'), key.lower().replace('-', '_')) for key in selected]
+
+    selected = []
+    for value in raw_values:
+        normalized = str(value).strip().lower().replace('-', '_')
+        if normalized in BLACKLIST_CATEGORY_ALIASES:
+            selected.append(BLACKLIST_CATEGORY_ALIASES[normalized])
+        elif normalized in BLACKLIST_ROLE_NAMES:
+            selected.append(normalized)
+    return list(dict.fromkeys(selected))
+
+
+async def apply_blacklist_roles(guild, user, selected_categories, reason, moderator):
+    """Assign the matching blacklist roles to a member and return the list of applied roles."""
+    assigned = []
+    for category in selected_categories:
+        role_name = BLACKLIST_ROLE_NAMES[category]
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            raise ValueError(f"Role '{role_name}' not found in this server.")
+
+        if role in user.roles:
+            continue
+
+        await user.add_roles(role, reason=f"{BLACKLIST_CATEGORY_LABELS.get(category, category.title())} blacklist by {moderator}: {reason}")
+        assigned.append(role)
+
+    return assigned
 
 async def collect_additional_evidence(bot, interaction, initial_evidence):
     """Helper function to collect additional evidence after a slash command"""
@@ -302,80 +358,98 @@ async def setup_moderation_commands(bot):
         except discord.HTTPException:
             await interaction.followup.send("❌ Failed to timeout the user.", ephemeral=True)
 
-    @bot.tree.command(name="ticketblacklist", description="Add ticket blacklist role to a user")
+    @bot.tree.command(name="blacklist", description="Blacklist a user from specific server access and moderation categories")
     @app_commands.describe(
-        user="The user to add to ticket blacklist",
-        reason="Reason for the ticket blacklist",
-        evidence="Evidence for the ticket blacklist (image or link)"
+        user="The user to blacklist",
+        reason="Reason for the blacklist",
+        tickets="Apply the ticket blacklist",
+        code_sharing="Apply the code sharing blacklist",
+        exalted="Apply the exalted blacklist",
+        creations="Apply the creations blacklist",
+        evidence="Evidence for the blacklist (image or link)"
     )
-    async def slash_ticketblacklist(
-        interaction: discord.Interaction, 
-        user: discord.Member, 
+    async def slash_blacklist(
+        interaction: discord.Interaction,
+        user: discord.Member,
         reason: str,
+        tickets: bool = False,
+        code_sharing: bool = False,
+        exalted: bool = False,
+        creations: bool = False,
         evidence: discord.Attachment = None
     ):
-        """Slash command for adding users to ticket blacklist"""
+        """Slash command for blacklisting a user from one or more categories."""
         await interaction.response.defer(ephemeral=True)
-        
-        # Check permissions
+
         if not has_permission(interaction.user, ALLOWED_ROLES):
             await interaction.followup.send("❌ You don't have permission to use this command.", ephemeral=True)
             return
-        
-        # Handle evidence - collect initial and additional evidence
+
+        selected_categories = get_requested_blacklist_categories({
+            "tickets": tickets,
+            "code_sharing": code_sharing,
+            "exalted": exalted,
+            "creations": creations,
+        })
+
+        if not selected_categories:
+            await interaction.followup.send("❌ Please select at least one blacklist category before continuing.", ephemeral=True)
+            return
+
         evidence_attachments, evidence_messages_to_delete = await collect_additional_evidence(bot, interaction, evidence)
-        
+
         if not evidence_attachments:
-            await interaction.followup.send("❌ Please provide evidence (image or attachment) for the ticket blacklist.", ephemeral=True)
+            await interaction.followup.send("❌ Please provide evidence (image or attachment) for the blacklist.", ephemeral=True)
             return
-        
-        # Find the ticket blacklist role
-        ticketblacklist_role = discord.utils.get(interaction.guild.roles, name=TICKETBLACKLIST_ROLE_NAME)
-        if not ticketblacklist_role:
-            await interaction.followup.send(f"❌ Ticket blacklist role '{TICKETBLACKLIST_ROLE_NAME}' not found. Please create this role first.", ephemeral=True)
+
+        missing_roles = []
+        for category in selected_categories:
+            role_name = BLACKLIST_ROLE_NAMES[category]
+            if not discord.utils.get(interaction.guild.roles, name=role_name):
+                missing_roles.append(role_name)
+
+        if missing_roles:
+            await interaction.followup.send(
+                f"❌ Missing required blacklist role(s): {', '.join(missing_roles)}. Create those roles first.",
+                ephemeral=True
+            )
             return
-        
-        # Check if user already has the role
-        if ticketblacklist_role in user.roles:
-            await interaction.followup.send(f"⚠️ {user.mention} is already ticket blacklisted.", ephemeral=True)
-            return
-        
-        # Create a mock message object with all evidence
+
         evidence_msg = type('MockMessage', (), {
             'attachments': evidence_attachments,
-            'content': f"/ticketblacklist {user.mention} {reason}",
+            'content': f"/blacklist {user.mention} {reason}",
             'author': interaction.user,
             'channel': interaction.channel,
-            'mentions': [user],  # Add the target user to mentions
+            'mentions': [user],
             'jump_url': f"https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id}/slash_command"
         })()
-        
+
         try:
-            # Log the action
-            await log_action(bot, evidence_msg, "Ticket Blacklisted", interaction.user, reason)
-            
-            # Send DM notification to user before adding role
+            category_names = [BLACKLIST_CATEGORY_LABELS.get(cat, cat.replace('_', ' ').title()) for cat in selected_categories]
+            blacklist_summary = ", ".join(category_names)
+
+            await log_action(bot, evidence_msg, "Blacklisted", interaction.user, f"{blacklist_summary}: {reason}")
+
             dm_sent = await notify_user_dm(
-                user, 
-                "Ticket Blacklisted", 
-                interaction.guild.name, 
-                interaction.user, 
-                reason=reason
+                user,
+                "Blacklisted",
+                interaction.guild.name,
+                interaction.user,
+                reason=f"{blacklist_summary}: {reason}"
             )
-            
-            # Add the ticket blacklist role
-            await user.add_roles(ticketblacklist_role, reason=f"Ticket blacklisted by {interaction.user}: {reason}")
-            
+
+            await apply_blacklist_roles(interaction.guild, user, selected_categories, reason, interaction.user)
+
             dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
-            await interaction.followup.send(f"✅ {user.mention} has been added to the ticket blacklist!{dm_status}")
-            
-            # Clean up evidence messages after successful action and logging
+            await interaction.followup.send(f"✅ {user.mention} has been blacklisted for: **{blacklist_summary}**{dm_status}")
             await cleanup_evidence_messages(evidence_messages_to_delete)
-            
+
+        except ValueError as e:
+            await interaction.followup.send(f"❌ {e}", ephemeral=True)
         except discord.Forbidden:
             await interaction.followup.send("❌ I don't have permission to manage roles for this user.", ephemeral=True)
         except discord.HTTPException:
-            await interaction.followup.send("❌ Failed to add the ticket blacklist role.", ephemeral=True)
+            await interaction.followup.send("❌ Failed to apply the blacklist roles.", ephemeral=True)
 
     @bot.tree.command(name="unban", description="Unban a user from the server")
     @app_commands.describe(
@@ -730,99 +804,103 @@ async def handle_timeout_command(client, message):
         await message.channel.send("❌ Failed to timeout the user.")
 
 
-async def handle_ticketblacklist_command(client, message):
-    """Handle the !ticketblacklist command
-    
-    Single-line format: !ticketblacklist @user reason
-    Interactive format: !ticketblacklist (then follow prompts)
+async def handle_blacklist_command(client, message):
+    """Handle the !blacklist and !ticketblacklist commands.
+
+    Supports selecting any number of blacklist categories using names such as
+    tickets, code_sharing, exalted, and creations.
     """
     if not has_permission(message.author, ALLOWED_ROLES):
         return
-    
-    # Try to parse arguments from the original message
-    parsed_args = parse_moderation_command(message.content)
-    
-    if parsed_args and len(parsed_args) == 2:
-        # Single-line format: !ticketblacklist @user reason
-        user_mention, blacklist_reason = parsed_args
-        
-        # Find the user from the mention
-        if not message.mentions:
-            await message.channel.send("❌ Please mention a valid user to ticket blacklist.")
-            return
-        
+
+    command = message.content.split()[0].lower()
+    tokens = message.content.split()
+
+    if not tokens or len(tokens) < 3:
+        await message.channel.send("Usage: !blacklist @user [tickets|code_sharing|exalted|creations] <reason>")
+        return
+
+    mention = None
+    selected_categories = []
+    reason_tokens = []
+
+    for token in tokens[1:]:
+        if token.startswith('<@'):
+            mention = token
+            continue
+
+        normalized = token.lower().replace('-', '_')
+        if normalized in BLACKLIST_CATEGORY_ALIASES:
+            selected_categories.append(BLACKLIST_CATEGORY_ALIASES[normalized])
+            continue
+
+        if normalized in BLACKLIST_ROLE_NAMES:
+            selected_categories.append(normalized)
+            continue
+
+        reason_tokens.append(token)
+
+    if not mention:
+        await message.channel.send("❌ Please mention a valid user to blacklist.")
+        return
+
+    if not selected_categories:
+        selected_categories = ["tickets"]
+
+    if not reason_tokens:
+        await message.channel.send("❌ Please provide a reason for the blacklist.")
+        return
+
+    user_to_blacklist = next((m for m in message.mentions if str(m.id) in mention.replace('<@', '').replace('>', '')), None)
+    if user_to_blacklist is None and message.mentions:
         user_to_blacklist = message.mentions[0]
-        
-        # Check if the original message has evidence
-        if not has_evidence(message):
-            await message.channel.send("❌ Please provide a link or image as evidence in your ticket blacklist command.")
-            return
-        
-        evidence_message = message
-        
-    else:
-        # Interactive format
-        await message.channel.send("Who do you want to add to the ticket blacklist? Please mention them and attach evidence.")
-        
-        try:
-            next_message = await wait_for_user_response(client, message)
-            
-            if not next_message.mentions:
-                await message.channel.send("❌ Please mention a valid user to ticket blacklist.")
-                return
-            
-            user_to_blacklist = next_message.mentions[0]
-            
-            # Ensure evidence is provided (give second chance if missing)
-            evidence_message = await ensure_evidence_provided(client, message, next_message)
-            if not evidence_message:
-                return  # Command was cancelled due to lack of evidence
-            
-            # Ask for reason
-            await message.channel.send("Please provide a reason for the ticket blacklist:")
-            
-            reason_message = await wait_for_user_response(client, message)
-            blacklist_reason = reason_message.content.strip()
-            
-        except asyncio.TimeoutError:
-            await message.channel.send("You took too long to respond!")
-            return
-    
-    # Find the ticket blacklist role
-    ticketblacklist_role = discord.utils.get(message.guild.roles, name=TICKETBLACKLIST_ROLE_NAME)
-    if not ticketblacklist_role:
-        await message.channel.send(f"❌ Ticket blacklist role '{TICKETBLACKLIST_ROLE_NAME}' not found. Please create this role first.")
+    if user_to_blacklist is None:
+        await message.channel.send("❌ Please mention a valid user to blacklist.")
         return
-    
-    # Check if user already has the role
-    if ticketblacklist_role in user_to_blacklist.roles:
-        await message.channel.send(f"⚠️ {user_to_blacklist.mention} is already ticket blacklisted.")
+
+    if not has_evidence(message):
+        await message.channel.send("❌ Please provide a link or image as evidence in your blacklist command.")
         return
-    
-    # Common ticket blacklist logic for both formats
+
+    selected_categories = list(dict.fromkeys(selected_categories))
+    blacklist_reason = " ".join(reason_tokens)
+
     try:
-        # Log the action (use the evidence message for logging)
-        await log_action(client, evidence_message, "Ticket Blacklisted", message.author, blacklist_reason)
-        
-        # Send DM notification to user before adding role
+        missing_roles = []
+        for category in selected_categories:
+            if not discord.utils.get(message.guild.roles, name=BLACKLIST_ROLE_NAMES[category]):
+                missing_roles.append(BLACKLIST_ROLE_NAMES[category])
+
+        if missing_roles:
+            await message.channel.send(f"❌ Missing blacklist role(s): {', '.join(missing_roles)}. Create those roles first.")
+            return
+
+        await apply_blacklist_roles(message.guild, user_to_blacklist, selected_categories, blacklist_reason, message.author)
+
+        category_names = [BLACKLIST_CATEGORY_LABELS.get(cat, cat.replace('_', ' ').title()) for cat in selected_categories]
+        summary = ", ".join(category_names)
+
+        await log_action(client, message, "Blacklisted", message.author, f"{summary}: {blacklist_reason}")
+
         dm_sent = await notify_user_dm(
-            user_to_blacklist, 
-            "Ticket Blacklisted", 
-            message.guild.name, 
-            message.author, 
-            reason=blacklist_reason
+            user_to_blacklist,
+            "Blacklisted",
+            message.guild.name,
+            message.author,
+            reason=f"{summary}: {blacklist_reason}"
         )
-        
-        # Add the ticket blacklist role
-        await user_to_blacklist.add_roles(ticketblacklist_role, reason=f"Ticket blacklisted by {message.author}: {blacklist_reason}")
+
         dm_status = " (DM sent)" if dm_sent else " (DM failed - user may have DMs disabled)"
-        await message.channel.send(f"✅ {user_to_blacklist.mention} has been added to the ticket blacklist!{dm_status}")
-        
-        # Clean up evidence message after successful action and logging (but not the original command message)
-        if evidence_message != message and evidence_message.attachments:
-            await cleanup_evidence_messages([evidence_message], delay=5)
-            
+        await message.channel.send(f"✅ {user_to_blacklist.mention} has been blacklisted for: **{summary}**{dm_status}")
+
+    except ValueError as e:
+        await message.channel.send(f"❌ {e}")
     except discord.Forbidden:
         await message.channel.send("❌ I don't have permission to manage roles for this user.")
     except discord.HTTPException:
-        await message.channel.send("❌ Failed to add the ticket blacklist role.")
+        await message.channel.send("❌ Failed to apply the blacklist roles.")
+
+
+async def handle_ticketblacklist_command(client, message):
+    """Backward-compatible alias for the generic blacklist command."""
+    await handle_blacklist_command(client, message)

@@ -290,8 +290,8 @@ def parse_moderation_command(message_content):
         duration = parts[1]
         reason = ' '.join(parts[2:])
         return user_mention, duration, reason
-    elif command == '!ticketblacklist':
-        # Ticket blacklist: mention, reason (with optional evidence)
+    elif command in ['!blacklist', '!ticketblacklist']:
+        # Generic blacklist: mention, reason (with optional evidence)
         reason = ' '.join(parts[1:])
         return user_mention, reason
     

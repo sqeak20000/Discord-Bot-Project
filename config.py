@@ -6,7 +6,13 @@ load_dotenv()
 
 # Bot configuration
 ALLOWED_ROLES = ["Administrator", "Server Mod", "Head Moderator", "Trainee"]
-TICKETBLACKLIST_ROLE_NAME = "ticket blacklist"  # Role name for ticket blacklist
+BLACKLIST_ROLE_NAMES = {
+    "tickets": "ticket blacklist",
+    "code_sharing": "code sharing blacklist",
+    "exalted": "exalted blacklist",
+    "creations": "creations blacklist",
+}
+TICKETBLACKLIST_ROLE_NAME = BLACKLIST_ROLE_NAMES["tickets"]
 LOG_CHANNEL_ID = 1397806698596405268
 FORUM_CHANNEL_ID = 1441865464740581561  # Forum channel ID for restricted commenting
 COMMAND_TIMEOUT = 30.0
@@ -30,19 +36,6 @@ GUILDED_ANNOUNCEMENTS_CHANNEL_ID = os.getenv('GUILDED_ANNOUNCEMENTS_CHANNEL_ID')
 
 # Cross-posting feature toggle
 ENABLE_CROSS_POSTING = False
-
-# Roblox integration configuration
-ROBLOX_COOKIE = os.getenv('ROBLOX_COOKIE')  # Roblox account cookie (.ROBLOSECURITY)
-ROBLOX_GROUP_ID = os.getenv('ROBLOX_GROUP_ID')  # Roblox group ID where bot has permission to post
-ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
-UNIVERSE_ID = os.getenv("UNIVERSE_ID")
-ROBLOX_TOPIC_NAME = "DiscordBanRequest"
-
-# Roblox feature toggle
-ENABLE_ROBLOX_POSTING = all([
-    ROBLOX_COOKIE,
-    ROBLOX_GROUP_ID
-])
 
 # Guilded announcement update strategy
 GUILDED_UPDATE_EXISTING = os.getenv('GUILDED_UPDATE_EXISTING', 'true').lower() == 'true'
