@@ -7,7 +7,7 @@ Run this when you want to update slash commands without restarting the bot.
 import discord
 import asyncio
 from config import BOT_TOKEN
-from moderation import setup_moderation_commands
+from moderation import sync_moderation_commands
 
 async def main():
     """Main function to sync commands"""
@@ -25,13 +25,10 @@ async def main():
         print(f"✅ Connected as {bot.user}")
         
         try:
-            # Setup moderation commands
-            print("🔧 Setting up moderation commands...")
-            await setup_moderation_commands(bot)
-            
-            # Sync commands
-            print("🔄 Syncing slash commands...")
-            synced = await bot.tree.sync()
+            # Remove stale command registrations before re-registering current ones.
+            print("🔧 Clearing stale moderation commands...")
+            synced = await sync_moderation_commands(bot)
+            print("🔄 Slash commands synced successfully.")
             
             print(f"✅ Successfully synced {len(synced)} slash commands:")
             for command in synced:

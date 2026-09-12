@@ -3,7 +3,7 @@ import asyncio
 import logging
 from discord.ext import commands
 from config import BOT_TOKEN, FORUM_CHANNEL_ID, ALLOWED_ROLES
-from moderation import setup_moderation_commands
+from moderation import setup_moderation_commands, sync_moderation_commands
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -41,7 +41,7 @@ async def on_ready():
     # Setup and sync slash commands when bot starts up
     try:
         logging.info("Setting up moderation commands...")
-        await setup_moderation_commands(bot)
+        await sync_moderation_commands(bot)
 
         # Verify forum channel access
         forum_channel = bot.get_channel(FORUM_CHANNEL_ID)

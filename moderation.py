@@ -143,6 +143,28 @@ async def cleanup_evidence_messages(evidence_messages_to_delete, delay=3):
         except Exception as e:
             print(f"❌ Error deleting evidence message {msg.id}: {e}")
 
+async def sync_moderation_commands(bot):
+    """Clear stale slash commands from Discord and re-register the current moderation tree.
+
+    This avoids stale registrations from older command definitions (for example a
+    previous parameter name like `sociopath_user`) remaining in Discord's app-command
+    cache after code updates.
+    """
+    if not hasattr(bot, "_moderation_commands_setup"):
+        bot._moderation_commands_setup = False
+
+    # Force a fresh registration so old slash commands disappear from Discord.
+    bot._moderation_commands_setup = False
+    if hasattr(bot.tree, "clear_commands"):
+        try:
+            await bot.tree.clear_commands(guild=None)
+        except Exception as e:
+            print(f"⚠️ Failed to clear old slash commands: {e}")
+
+    await setup_moderation_commands(bot)
+    return await bot.tree.sync()
+
+
 async def setup_moderation_commands(bot):
     """Setup slash commands for moderation.
 
