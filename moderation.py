@@ -469,7 +469,7 @@ async def setup_moderation_commands(bot):
         reason="Reason for the unban"
     )
     async def slash_unban(interaction: discord.Interaction, user_id: str, reason: str):
-        if not has_permission(interaction.user):
+        if not has_permission(interaction.user, ALLOWED_ROLES):
             await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
             return
 
@@ -495,7 +495,7 @@ async def setup_moderation_commands(bot):
         reason="Reason for removing timeout"
     )
     async def slash_untimeout(interaction: discord.Interaction, user: discord.Member, reason: str):
-        if not has_permission(interaction.user):
+        if not has_permission(interaction.user, ALLOWED_ROLES):
             await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
             return
 
