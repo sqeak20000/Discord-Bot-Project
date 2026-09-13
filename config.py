@@ -36,19 +36,8 @@ ROBLOX_TOPIC_NAME = os.getenv('ROBLOX_TOPIC_NAME', 'RemoteBan')
 # Optional guild-specific sync target. If set, old slash commands in that guild are
 # cleared and re-registered against that guild instead of relying on global sync.
 DISCORD_GUILD_ID = int(os.getenv('DISCORD_GUILD_ID', 0)) or None
+ROBLOX_LOG_CHANNEL_ID = int(os.getenv('ROBLOX_LOG_CHANNEL_ID', 123456789012345678))
 
-# Cross-posting configuration
-DISCORD_UPDATES_CHANNEL_ID = int(os.getenv('DISCORD_UPDATES_CHANNEL_ID', 0))  # Discord channel to monitor
-GUILDED_BOT_TOKEN = os.getenv('GUILDED_BOT_TOKEN')  # Guilded bot token
-GUILDED_SERVER_ID = os.getenv('GUILDED_SERVER_ID')  # Guilded server ID
-GUILDED_ANNOUNCEMENTS_CHANNEL_ID = os.getenv('GUILDED_ANNOUNCEMENTS_CHANNEL_ID')  # Guilded channel ID
-
-# Cross-posting feature toggle
-ENABLE_CROSS_POSTING = False
-
-# Guilded announcement update strategy
-GUILDED_UPDATE_EXISTING = os.getenv('GUILDED_UPDATE_EXISTING', 'true').lower() == 'true'
-GUILDED_FALLBACK_TO_NEW = os.getenv('GUILDED_FALLBACK_TO_NEW', 'true').lower() == 'true'
 
 # Automatic role management configuration
 # Role combinations that should trigger automatic role assignment

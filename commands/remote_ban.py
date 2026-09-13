@@ -3,7 +3,8 @@ from discord import app_commands
 import aiohttp
 import json
 
-from config import ALLOWED_ROLES, ROBLOX_API_KEY, UNIVERSE_ID, ROBLOX_TOPIC_NAME
+# Ensure these are defined in your config.py
+from config import ALLOWED_ROLES, ROBLOX_API_KEY, UNIVERSE_ID, ROBLOX_TOPIC_NAME, ROBLOX_LOG_CHANNEL_ID
 from utils import has_permission
 
 
@@ -21,10 +22,23 @@ async def get_user_id(username: str) -> int | None:
     return None
 
 
+async def get_user_thumbnail(user_id: int) -> str:
+    """Fetches the player's avatar headshot thumbnail URL."""
+    url = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png&isCircular=false"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                if data.get("data") and len(data["data"]) > 0:
+                    return data["data"][0]["imageUrl"]
+    return ""
+
+
 async def send_roblox_message(action: str, user_id: int, reason: str = ""):
     """Send a message to the Roblox Open Cloud topic."""
     if not ROBLOX_API_KEY or not UNIVERSE_ID:
-        return False, "Roblox integration is not configured. Set ROBLOX_API_KEY and UNIVERSE_ID in your environment."
+        return False, "Roblox integration is not configured. Set ROBLOX_API_KEY and UNIVERSE_ID in your config."
 
     url = f"https://apis.roblox.com/messaging-service/v1/universes/{UNIVERSE_ID}/topics/{ROBLOX_TOPIC_NAME}"
     headers = {
@@ -68,6 +82,22 @@ async def setup_remote_ban_command(bot):
         success, error = await send_roblox_message("ban", user_id, reason)
         if success:
             await interaction.followup.send(f"🔨 Successfully requested ban for `{username}` (ID: {user_id}).")
+            
+            # Logging to Discord
+            log_channel = interaction.guild.get_channel(ROBLOX_LOG_CHANNEL_ID)
+            if log_channel:
+                thumbnail_url = await get_user_thumbnail(user_id)
+                description = (
+                    f"**User:** {username}\n"
+                    f"**Moderator:** {interaction.user.name}\n"
+                    f"**Reason:** {reason}\n"
+                    f"**Duration:** Permanent\n"
+                    f"https://www.roblox.com/users/{user_id}/profile"
+                )
+                embed = discord.Embed(title="User Banned", description=description, color=discord.Color.dark_theme())
+                if thumbnail_url:
+                    embed.set_thumbnail(url=thumbnail_url)
+                await log_channel.send(embed=embed)
         else:
             await interaction.followup.send(f"❌ Failed to send ban to Roblox: {error}")
 
@@ -88,5 +118,19 @@ async def setup_remote_ban_command(bot):
         success, error = await send_roblox_message("unban", user_id)
         if success:
             await interaction.followup.send(f"✅ Successfully requested unban for `{username}` (ID: {user_id}).")
+            
+            # Logging to Discord
+            log_channel = interaction.guild.get_channel(ROBLOX_LOG_CHANNEL_ID)
+            if log_channel:
+                thumbnail_url = await get_user_thumbnail(user_id)
+                description = (
+                    f"**User:** {username}\n"
+                    f"**Moderator:** {interaction.user.name}\n"
+                    f"https://www.roblox.com/users/{user_id}/profile"
+                )
+                embed = discord.Embed(title="User Unbanned", description=description, color=discord.Color.green())
+                if thumbnail_url:
+                    embed.set_thumbnail(url=thumbnail_url)
+                await log_channel.send(embed=embed)
         else:
             await interaction.followup.send(f"❌ Failed to send unban to Roblox: {error}")
