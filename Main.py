@@ -110,10 +110,10 @@ async def handle_sync_commands(bot, message):
     await message.channel.send("🔄 **Syncing slash commands...** This may take a moment.")
     
     try:
-        # Re-setup commands first (in case there were changes)
+        # Re-register the current moderation tree cleanly before syncing.
         logging.info("🔄 Re-setting up moderation commands...")
-        await setup_moderation_commands(bot)
-        
+        await sync_moderation_commands(bot, guild_id=DISCORD_GUILD_ID)
+
         # Sync with retry logic
         max_retries = 3
         for attempt in range(max_retries):

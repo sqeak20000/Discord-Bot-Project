@@ -23,6 +23,11 @@ async def register_moderation_commands(bot):
     if getattr(bot, "_moderation_commands_setup", False):
         return
 
+    existing = bot.tree.get_command("ban")
+    if existing is not None:
+        bot._moderation_commands_setup = True
+        return
+
     @bot.tree.command(name="ban", description="Ban a user from the server")
     @app_commands.describe(
         user="The user to ban",
