@@ -3,7 +3,7 @@ from discord import app_commands
 import aiohttp
 import json
 
-from config import ALLOWED_ROLES, ROBLOX_API_KEY, UNIVERSE_ID, ROBLOX_TOPIC_NAME, LOG_CHANNEL_ID
+from config import ALLOWED_ROLES, ROBLOX_API_KEY, UNIVERSE_ID, ROBLOX_TOPIC_NAME, ROBLOX_LOG_CHANNEL_ID
 from utils import has_permission
 
 
@@ -119,7 +119,7 @@ async def setup_remote_ban_command(bot):
         if success:
             await interaction.followup.send(f"🔨 Successfully requested ban for `{username}` (ID: {user_id}). Duration: {duration_display}.")
             
-            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            log_channel = interaction.guild.get_channel(ROBLOX_LOG_CHANNEL_ID)
             if log_channel:
                 thumbnail_url = await get_user_thumbnail(user_id)
                 description = (
@@ -155,7 +155,7 @@ async def setup_remote_ban_command(bot):
         if success:
             await interaction.followup.send(f"✅ Successfully requested unban for `{username}` (ID: {user_id}).")
             
-            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            log_channel = interaction.guild.get_channel(ROBLOX_LOG_CHANNEL_ID)
             if log_channel:
                 thumbnail_url = await get_user_thumbnail(user_id)
                 description = (
