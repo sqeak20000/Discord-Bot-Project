@@ -36,7 +36,7 @@ ROBLOX_TOPIC_NAME = os.getenv('ROBLOX_TOPIC_NAME', 'RemoteBan')
 # Optional guild-specific sync target. If set, old slash commands in that guild are
 # cleared and re-registered against that guild instead of relying on global sync.
 DISCORD_GUILD_ID = int(os.getenv('DISCORD_GUILD_ID', 0)) or None
-ROBLOX_LOG_CHANNEL_ID = int(os.getenv('ROBLOX_LOG_CHANNEL_ID', 123456789012345678))
+ROBLOX_LOG_CHANNEL_ID = int(os.getenv('ROBLOX_LOG_CHANNEL_ID', 1022159810315173938))
 
 
 # Automatic role management configuration
