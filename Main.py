@@ -3,6 +3,7 @@ import asyncio
 import logging
 from discord.ext import commands
 from config import BOT_TOKEN, FORUM_CHANNEL_ID, ALLOWED_ROLES, DISCORD_GUILD_ID
+from commands import register_all_commands
 from moderation import setup_moderation_commands, sync_moderation_commands
 
 # Setup logging
@@ -30,14 +31,13 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 async def on_ready():
     logging.info(f'Logged in as {bot.user}')
     
-    # Setup role management system
+    # Register every command bundle from the commands package.
     try:
-        from role_manager import setup_role_management
-        await setup_role_management(bot)
-        logging.info("✅ Role management system initialized")
+        await register_all_commands(bot)
+        logging.info("✅ All command groups registered")
     except Exception as e:
-        logging.error(f"❌ Failed to setup role management: {e}")
-    
+        logging.error(f"❌ Failed to register command groups: {e}")
+
     # Setup and sync slash commands when bot starts up
     try:
         logging.info("Setting up moderation commands...")

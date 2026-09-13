@@ -28,6 +28,11 @@ BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN environment variable is not set")
 
+# Roblox integration configuration
+ROBLOX_API_KEY = os.getenv('ROBLOX_API_KEY')
+UNIVERSE_ID = os.getenv('UNIVERSE_ID')
+ROBLOX_TOPIC_NAME = os.getenv('ROBLOX_TOPIC_NAME', 'RemoteBan')
+
 # Optional guild-specific sync target. If set, old slash commands in that guild are
 # cleared and re-registered against that guild instead of relying on global sync.
 DISCORD_GUILD_ID = int(os.getenv('DISCORD_GUILD_ID', 0)) or None
