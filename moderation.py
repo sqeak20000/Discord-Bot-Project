@@ -503,8 +503,17 @@ async def setup_moderation_commands(bot):
         try:
             user_obj = await bot.fetch_user(int(user_id))
             await interaction.guild.unban(user_obj, reason=reason)
-            
-            await log_action(interaction.guild, interaction.user, user_obj, "Unban", reason)
+
+            mock_msg = type('MockMessage', (), {
+                'mentions': [user_obj],
+                'attachments': [],
+                'content': f"/unban {user_id} {reason}",
+                'author': interaction.user,
+                'channel': interaction.channel,
+                'guild': interaction.guild
+            })()
+
+            await log_action(bot, mock_msg, "Unban", interaction.user, reason)
             await interaction.followup.send(f"✅ **{user_obj.name}** has been unbanned.\nReason: {reason}")
             
         except ValueError:
@@ -532,11 +541,19 @@ async def setup_moderation_commands(bot):
                 return
 
             await user.timeout(None, reason=reason)
+
+            mock_msg = type('MockMessage', (), {
+                'mentions': [user],
+                'attachments': [],
+                'content': f"/untimeout {user.mention} {reason}",
+                'author': interaction.user,
+                'channel': interaction.channel,
+                'guild': interaction.guild
+            })()
             
             # Notify user
             await notify_user_dm(user, "Timeout Removed", interaction.guild.name, interaction.user, reason)
-            
-            await log_action(interaction.guild, interaction.user, user, "Untimeout", reason)
+            await log_action(bot, mock_msg, "Untimeout", interaction.user, reason)
             await interaction.followup.send(f"✅ **{user.name}**'s timeout has been removed.\nReason: {reason}")
             
         except Exception as e:

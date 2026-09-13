@@ -33,7 +33,9 @@ def has_evidence(message):
 
 async def log_action(client, message, action_type, moderator, reason=None, duration=None):
     """Log moderation action to the log channel with embeds and pings"""
-    print(f"🔍 LOGGING: {action_type} by {moderator.display_name}")
+    moderator_name = getattr(moderator, 'display_name', getattr(moderator, 'name', str(moderator)))
+    moderator_mention = getattr(moderator, 'mention', getattr(moderator, 'name', str(moderator)))
+    print(f"🔍 LOGGING: {action_type} by {moderator_name}")
     
     # Get log channel
     log_channel = client.get_channel(LOG_CHANNEL_ID)
@@ -69,7 +71,7 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
     
     embed.add_field(
         name="�️ Moderator", 
-        value=f"{moderator.mention}\n({moderator.display_name})", 
+        value=f"{moderator_mention}\n({moderator_name})", 
         inline=True
     )
     
