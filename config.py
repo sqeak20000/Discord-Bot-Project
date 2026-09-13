@@ -28,6 +28,10 @@ BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 if not BOT_TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN environment variable is not set")
 
+# Optional guild-specific sync target. If set, old slash commands in that guild are
+# cleared and re-registered against that guild instead of relying on global sync.
+DISCORD_GUILD_ID = int(os.getenv('DISCORD_GUILD_ID', 0)) or None
+
 # Cross-posting configuration
 DISCORD_UPDATES_CHANNEL_ID = int(os.getenv('DISCORD_UPDATES_CHANNEL_ID', 0))  # Discord channel to monitor
 GUILDED_BOT_TOKEN = os.getenv('GUILDED_BOT_TOKEN')  # Guilded bot token

@@ -143,26 +143,29 @@ async def cleanup_evidence_messages(evidence_messages_to_delete, delay=3):
         except Exception as e:
             print(f"❌ Error deleting evidence message {msg.id}: {e}")
 
-async def sync_moderation_commands(bot):
+async def sync_moderation_commands(bot, guild_id=None):
     """Clear stale slash commands from Discord and re-register the current moderation tree.
 
-    This avoids stale registrations from older command definitions (for example a
-    previous parameter name like `sociopath_user`) remaining in Discord's app-command
-    cache after code updates.
+    Discord keeps a server-side cache of slash commands per guild. If an older guild
+    registration still exists (for example with a stale parameter like `sociopath_user`),
+    simply syncing global commands is not enough; we must clear the guild-specific command
+    set before re-registering the current schema.
     """
     if not hasattr(bot, "_moderation_commands_setup"):
         bot._moderation_commands_setup = False
+
+    target_guild = discord.Object(id=guild_id) if guild_id else None
 
     # Force a fresh registration so old slash commands disappear from Discord.
     bot._moderation_commands_setup = False
     if hasattr(bot.tree, "clear_commands"):
         try:
-            await bot.tree.clear_commands(guild=None)
+            await bot.tree.clear_commands(guild=target_guild)
         except Exception as e:
             print(f"⚠️ Failed to clear old slash commands: {e}")
 
     await setup_moderation_commands(bot)
-    return await bot.tree.sync()
+    return await bot.tree.sync(guild=target_guild)
 
 
 async def setup_moderation_commands(bot):
