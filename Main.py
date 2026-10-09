@@ -2,9 +2,16 @@ import discord
 import asyncio
 import logging
 from discord.ext import commands
-from config import BOT_TOKEN, FORUM_CHANNEL_ID, ALLOWED_ROLES, DISCORD_GUILD_ID
+from config import (
+    BOT_TOKEN,
+    FORUM_CHANNEL_ID,
+    ALLOWED_ROLES,
+    DISCORD_GUILD_ID,
+    FILE_REQUIRED_CHANNEL_IDS,
+)
 from commands import register_all_commands
 from moderation import setup_moderation_commands, sync_moderation_commands
+from channel_filter import enforce_file_required_channel
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -161,6 +168,9 @@ async def handle_sync_commands(bot, message):
 async def on_message(message):
     if message.author == bot.user:
         return  # Ignore messages from the bot itself
+
+    if await enforce_file_required_channel(message, FILE_REQUIRED_CHANNEL_IDS):
+        return
     
     # Enforce forum channel restrictions (Only owner and mods can chat)
     if isinstance(message.channel, discord.Thread) and message.channel.parent_id == FORUM_CHANNEL_ID:

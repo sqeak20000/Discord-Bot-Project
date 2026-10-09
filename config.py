@@ -15,6 +15,12 @@ BLACKLIST_ROLE_NAMES = {
 TICKETBLACKLIST_ROLE_NAME = BLACKLIST_ROLE_NAMES["tickets"]
 LOG_CHANNEL_ID = 1397806698596405268
 FORUM_CHANNEL_ID = 1441865464740581561  # Forum channel ID for restricted commenting
+# Comma-separated channel IDs where messages must include an attachment.
+FILE_REQUIRED_CHANNEL_IDS = frozenset(
+    int(channel_id.strip())
+    for channel_id in os.getenv('FILE_REQUIRED_CHANNEL_IDS', '').split(',')
+    if channel_id.strip()
+)
 COMMAND_TIMEOUT = 30.0
 MESSAGE_DELETE_DELAY = 5
 
