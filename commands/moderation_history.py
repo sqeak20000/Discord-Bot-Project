@@ -352,7 +352,7 @@ def register_moderation_history_commands(bot):
     if getattr(bot, "_moderation_history_commands_setup", False):
         return
 
-    @bot.tree.command(name="moderate", description="Review history and moderate a user")
+    @app_commands.command(name="moderate", description="Review history and moderate a user")
     @app_commands.describe(user="The user whose moderation history you want to review")
     async def moderate(interaction: discord.Interaction, user: discord.User):
         if not has_permission(interaction.user, ALLOWED_ROLES):
@@ -382,7 +382,10 @@ def register_moderation_history_commands(bot):
                 ephemeral=True,
             )
 
-    @bot.tree.command(
+    if bot.tree.get_command("moderate") is None:
+        bot.tree.add_command(moderate)
+
+    @app_commands.command(
         name="index_moderation_history",
         description="Import past moderation actions from the moderation log channel",
     )
@@ -451,5 +454,8 @@ def register_moderation_history_commands(bot):
                 "Failed to index moderation history; check the bot logs. You may retry the command.",
                 ephemeral=True,
             )
+
+    if bot.tree.get_command("index_moderation_history") is None:
+        bot.tree.add_command(index_moderation_history)
 
     bot._moderation_history_commands_setup = True
