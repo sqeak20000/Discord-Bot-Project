@@ -1,8 +1,11 @@
 import discord
 import asyncio
 import io
+import logging
+import uuid
 from datetime import timedelta
 from config import LOG_CHANNEL_ID, COMMAND_TIMEOUT, MESSAGE_DELETE_DELAY, RATE_LIMIT_DELAY, RATE_LIMIT_RETRY_DELAY, ATTACHMENT_SEND_DELAY
+from moderation_store import record_action
 
 async def safe_send_message(channel, content=None, embed=None, file=None):
     """Send a message with rate limit handling"""
@@ -39,11 +42,6 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
     
     # Get log channel
     log_channel = client.get_channel(LOG_CHANNEL_ID)
-    if not log_channel:
-        print(f"❌ CRITICAL: Log channel {LOG_CHANNEL_ID} not found!")
-        return
-    
-    print(f"✅ Found log channel: #{log_channel.name}")
     
     # Get target user
     target_user = None
@@ -109,8 +107,34 @@ async def log_action(client, message, action_type, moderator, reason=None, durat
             inline=False
         )
     
-    embed.set_footer(text=f"Action ID: {discord.utils.utcnow().strftime('%Y%m%d_%H%M%S')}")
-    
+    occurred_at = discord.utils.utcnow()
+    action_id = f"{occurred_at.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+    embed.set_footer(text=f"Action ID: {action_id}")
+
+    if target_user:
+        try:
+            target_guild = getattr(message, 'guild', None) or getattr(target_user, 'guild', None)
+            record_action(
+                entry_key=f"live:{action_id}",
+                guild_id=getattr(target_guild, 'id', None),
+                target_id=target_user.id,
+                target_name=getattr(target_user, 'display_name', target_user.name),
+                moderator_id=getattr(moderator, 'id', None),
+                moderator_name=moderator_name,
+                action_type=action_type,
+                reason=reason,
+                duration=duration,
+                evidence=evidence_urls,
+                occurred_at=occurred_at,
+                action_id=action_id,
+            )
+        except Exception:
+            logging.exception("Failed to store moderation action %s", action_id)
+
+    if not log_channel:
+        logging.error("Moderation log channel %s not found", LOG_CHANNEL_ID)
+        return
+
     try:
         # Send embed
         await log_channel.send(embed=embed)

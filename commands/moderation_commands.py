@@ -12,6 +12,7 @@ from moderation import (
     get_requested_blacklist_categories,
 )
 from utils import has_permission, log_action, notify_user_dm, parse_duration
+from .moderation_history import register_moderation_history_commands
 
 
 async def register_moderation_commands(bot):
@@ -25,6 +26,7 @@ async def register_moderation_commands(bot):
 
     existing = bot.tree.get_command("ban")
     if existing is not None:
+        register_moderation_history_commands(bot)
         bot._moderation_commands_setup = True
         return
 
@@ -352,6 +354,7 @@ async def register_moderation_commands(bot):
         except Exception as exc:
             await interaction.followup.send(f"❌ Failed to remove timeout: {exc}", ephemeral=True)
 
+    register_moderation_history_commands(bot)
     bot._moderation_commands_setup = True
 
 

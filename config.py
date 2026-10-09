@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -20,6 +21,10 @@ FILE_REQUIRED_CHANNEL_IDS = frozenset(
     int(channel_id.strip())
     for channel_id in os.getenv('FILE_REQUIRED_CHANNEL_IDS', '').split(',')
     if channel_id.strip()
+)
+MODERATION_DB_PATH = Path(os.getenv('MODERATION_DB_PATH', 'data/moderation.sqlite3'))
+MODERATION_INDEXER_USER_ID = int(
+    os.getenv('MODERATION_INDEXER_USER_ID', '816889500813754399')
 )
 COMMAND_TIMEOUT = 30.0
 MESSAGE_DELETE_DELAY = 5

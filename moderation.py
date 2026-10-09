@@ -158,11 +158,8 @@ async def sync_moderation_commands(bot, guild_id=None):
 
     # Force a fresh registration so old slash commands disappear from Discord.
     bot._moderation_commands_setup = False
-    if hasattr(bot.tree, "clear_commands"):
-        try:
-            await bot.tree.clear_commands(guild=target_guild)
-        except Exception as e:
-            print(f"⚠️ Failed to clear old slash commands: {e}")
+    bot._moderation_history_commands_setup = False
+    bot.tree.clear_commands(guild=target_guild)
 
     await setup_moderation_commands(bot)
     return await bot.tree.sync(guild=target_guild)

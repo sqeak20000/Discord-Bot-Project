@@ -2,6 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+VOLUME ["/app/data"]
+
 # Copy requirements first for better caching
 COPY requirements.txt .
 
