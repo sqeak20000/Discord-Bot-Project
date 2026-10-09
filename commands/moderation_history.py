@@ -53,6 +53,13 @@ def _history_embed(user, actions):
     return embed
 
 
+class ModalTextInput(discord.ui.TextInput):
+    def to_component_dict(self):
+        payload = super().to_component_dict()
+        payload.pop("label", None)
+        return payload
+
+
 class ModerateActionModal(discord.ui.Modal):
     def __init__(self, target, action, moderator_id):
         super().__init__(title=f"{action.title()} {target}", timeout=300)
@@ -60,8 +67,7 @@ class ModerateActionModal(discord.ui.Modal):
         self.action = action
         self.moderator_id = moderator_id
 
-        self.reason = discord.ui.TextInput(
-            label="Reason",
+        self.reason = ModalTextInput(
             placeholder="Reason for this moderation action",
             style=discord.TextStyle.paragraph,
             max_length=1000,
@@ -69,8 +75,7 @@ class ModerateActionModal(discord.ui.Modal):
         self.add_item(discord.ui.Label(text="Reason", component=self.reason))
 
         if action == "timeout":
-            self.duration = discord.ui.TextInput(
-                label="Duration",
+            self.duration = ModalTextInput(
                 placeholder="Examples: 10m, 1h, 2d, 1w",
                 max_length=20,
             )
@@ -79,8 +84,7 @@ class ModerateActionModal(discord.ui.Modal):
             self.duration = None
 
         if action == "blacklist":
-            self.categories = discord.ui.TextInput(
-                label="Blacklist categories",
+            self.categories = ModalTextInput(
                 placeholder="tickets, code_sharing, exalted, creations",
                 default="tickets",
                 max_length=100,
@@ -90,8 +94,7 @@ class ModerateActionModal(discord.ui.Modal):
             self.categories = None
 
         if action == "ban":
-            self.delete_messages = discord.ui.TextInput(
-                label="Delete last 7 days of messages? (yes/no)",
+            self.delete_messages = ModalTextInput(
                 default="no",
                 max_length=3,
             )
