@@ -2,8 +2,10 @@
 
 Moderation actions recorded through the bot are saved in SQLite at
 `data/moderation.sqlite3` by default. Set `MODERATION_DB_PATH` to override the
-location. When running in Docker, preserve the `/app/data` volume across
-container replacements or the database will be lost.
+location. When deploying on Railway, create a Railway Volume and mount it at
+`/app/data`; Dockerfile `VOLUME` instructions are not supported by Railway.
+Without a persistent volume mounted there, the database is lost when the
+container is replaced.
 
 Set `MODERATION_INDEXER_USER_ID` to the Discord user ID authorized to run the
 one-time import. It defaults to the configured moderator's ID. The bot also
