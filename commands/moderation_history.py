@@ -328,14 +328,38 @@ class ModerateActionSelect(discord.ui.Select):
                 ephemeral=True,
             )
             return
-        await interaction.response.send_modal(
-            ModerateActionModal(self.target, self.values[0], self.moderator_id)
-        )
+        try:
+            await interaction.response.send_modal(
+                ModerateActionModal(self.target, self.values[0], self.moderator_id)
+            )
+        except discord.HTTPException:
+            logging.exception(
+                "Discord rejected moderation modal for action %s and user %s",
+                self.values[0],
+                self.target.id,
+            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "Discord could not open the moderation form. Please try again; "
+                    "if it continues, contact the bot administrator.",
+                    ephemeral=True,
+                )
+        except Exception:
+            logging.exception(
+                "Failed to open moderation modal for action %s and user %s",
+                self.values[0],
+                self.target.id,
+            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "The moderation form could not be opened. Please try again.",
+                    ephemeral=True,
+                )
 
 
 class ModerateActionView(discord.ui.View):
     def __init__(self, target, moderator_id):
-        super().__init__(timeout=180)
+        super().__init__(timeout=900)
         self.add_item(ModerateActionSelect(target, moderator_id))
 
     async def interaction_check(self, interaction):
