@@ -1,5 +1,7 @@
 """Moderation slash commands, moved out of the main moderation logic file."""
 
+import logging
+
 import discord
 from discord import app_commands
 
@@ -87,6 +89,141 @@ async def register_moderation_commands(bot):
         except Exception as exc:
             print(f"Ban failed: Unexpected error - {exc}")
             await interaction.followup.send("❌ An unexpected error occurred during the ban.", ephemeral=True)
+
+    @bot.tree.command(name="softban", description="Ban, delete recent messages, then immediately unban a user")
+    @app_commands.describe(
+        user="The user to softban",
+        reason="Reason for the softban",
+        delete_message_hours="How many hours of the user's messages to delete (0–168, default 24)",
+        evidence="Evidence for the softban (image or file)",
+    )
+    async def slash_softban(
+        interaction: discord.Interaction,
+        user: discord.Member,
+        reason: str,
+        delete_message_hours: app_commands.Range[int, 0, 168] = 24,
+        evidence: discord.Attachment = None,
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        if not has_permission(interaction.user, ALLOWED_ROLES):
+            await interaction.followup.send(
+                "❌ You don't have permission to use this command.",
+                ephemeral=True,
+            )
+            return
+
+        reason = reason.strip()
+        if not reason:
+            await interaction.followup.send(
+                "❌ Please provide a reason for the softban.",
+                ephemeral=True,
+            )
+            return
+
+        evidence_attachments, evidence_messages_to_delete = await collect_additional_evidence(
+            bot,
+            interaction,
+            evidence,
+        )
+        if not evidence_attachments:
+            await interaction.followup.send(
+                "❌ Please provide evidence (image or attachment) for the softban.",
+                ephemeral=True,
+            )
+            return
+
+        evidence_msg = type("MockMessage", (), {
+            "attachments": evidence_attachments,
+            "content": f"/softban {user.mention} {reason}",
+            "author": interaction.user,
+            "channel": interaction.channel,
+            "mentions": [user],
+            "guild": interaction.guild,
+            "jump_url": (
+                f"https://discord.com/channels/{interaction.guild.id}/"
+                f"{interaction.channel.id}/slash_command"
+            ),
+        })()
+        delete_message_seconds = delete_message_hours * 60 * 60
+        audit_reason = (
+            f"Softban by {interaction.user}: {reason} "
+            f"(delete last {delete_message_hours} hour(s))"
+        )
+
+        try:
+            await interaction.guild.ban(
+                user,
+                reason=audit_reason,
+                delete_message_seconds=delete_message_seconds,
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "❌ I don't have permission to softban this user.",
+                ephemeral=True,
+            )
+            return
+        except discord.HTTPException:
+            logging.exception("Failed to ban user %s for softban", user.id)
+            await interaction.followup.send(
+                "❌ The softban could not be completed.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            await interaction.guild.unban(
+                user,
+                reason=f"Softban completed by {interaction.user}: {reason}",
+            )
+        except discord.Forbidden:
+            logging.exception("Softban removed messages but failed to unban user %s", user.id)
+            await log_action(
+                bot,
+                evidence_msg,
+                "Softban (unban failed)",
+                interaction.user,
+                reason,
+                f"{delete_message_hours}h of messages deleted; user remains banned",
+            )
+            await interaction.followup.send(
+                f"⚠️ {user.mention}'s messages were removed, but the bot could not unban "
+                "them. They remain banned; please unban them manually after resolving "
+                "the bot's permissions.",
+                ephemeral=True,
+            )
+            return
+        except discord.HTTPException:
+            logging.exception("Softban removed messages but failed to unban user %s", user.id)
+            await log_action(
+                bot,
+                evidence_msg,
+                "Softban (unban failed)",
+                interaction.user,
+                reason,
+                f"{delete_message_hours}h of messages deleted; user remains banned",
+            )
+            await interaction.followup.send(
+                f"⚠️ {user.mention}'s messages were removed, but unbanning them failed. "
+                "They remain banned; please unban them manually.",
+                ephemeral=True,
+            )
+            return
+
+        await log_action(
+            bot,
+            evidence_msg,
+            "Softbanned",
+            interaction.user,
+            reason,
+            f"{delete_message_hours}h of messages deleted; user immediately unbanned",
+        )
+        await interaction.followup.send(
+            f"✅ {user.mention} was softbanned: their messages from the last "
+            f"{delete_message_hours} hour(s) were deleted and they were immediately unbanned.",
+            ephemeral=True,
+        )
+        await cleanup_evidence_messages(evidence_messages_to_delete)
 
     @bot.tree.command(name="kick", description="Kick a user from the server")
     @app_commands.describe(

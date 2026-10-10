@@ -22,6 +22,13 @@ The action form requires at least one uploaded evidence file. Timeout also
 requires a duration. Blacklist accepts comma-separated categories: `tickets`,
 `code_sharing`, `exalted`, and `creations`.
 
+Use `/softban user:<user> reason:<reason>` to ban a user, delete their recent
+messages, and immediately unban them. It requires evidence and deletes the
+last 24 hours of messages by default. Set `delete_message_hours` from 0 to 168
+to change the deletion window (up to Discord's seven-day limit). If the bot
+cannot unban the user after deleting messages, the command reports that the
+user remains banned so a moderator can unban them manually.
+
 The configured indexer ID is `816889500813754399`. Change the
 `MODERATION_INDEXER_USER_ID` environment variable if the authorized account
 changes.
